@@ -13,14 +13,6 @@ num_var = length(y);
 temp = T_b*AD.T0;
 tv = Tv_b*AD.T0;    
 %% расчет колебательных распределений
-[ii,jj,kk, ll] = ind2sub(AD.lch4, AD.ind_1d_in_3d);
-i_state = ii-1; j_state = jj-1; k_state = kk-1; l_state = ll-1;
-
-E2 = i_state*AD.e1234(2, 1, 1, 1) / AD.k;
-E3 = j_state*AD.e0100 / AD.k;
-E4 = k_state*AD.e0010 / AD.k;
-E5 = l_state*AD.e0001 / AD.k;
-
 AD.lch4 = [9, 17, 9, 20];
 AD.d = [1, 2, 3, 3]; %степени вырожденности по модам
 z_vibr = 0;
@@ -30,25 +22,18 @@ for l = 1:AD.lch4(4)
         for j = 1:AD.lch4(2)
             for i = 1:AD.lch4(1) 
                 z_vibr = z_vibr + AD.stw(i, j, k, l) * (-(i * AD.e1000 + j * AD.e0100 + k * AD.e0010 + l * AD.e0001)/(AD.k * tv));
-                e_vibr = 0;
+                e_vibr = e_vibr + (1 / (z_vibr * AD.m)) * AD.stw(i, j, k, l) * AD.e1234(i, j, k, l) * (-(i * AD.e1000 + j * AD.e0100 + k * AD.e0010 + l * AD.e0001)/(AD.k * tv));
             end
         end
     end
 end
 
 
-expE = exp(-E2-E3-E4-E5);
-Zv = sum(AD.stw .* expE);
-
 %% дополнительные параметры
 kT0 = AD.k*AD.T0; % [Дж]
 
 % колебательная энергия молекул в безр. виде
-eco2i_b = AD.eco2_i/kT0;
-eco20_b = AD.eco2_0/kT0;
-
-e12_b = AD.e12/kT0;
-e3_b = AD.e3/kT0;
+e1234_b = AD.e1234/kT0;
 
 % вспомогательные величины
 % xi в уравнения будут отличаться в зависимости от суммирования
@@ -58,11 +43,10 @@ xi3_IE = -E4/t3;
 xi = xi12_IE + xi3_IE;
 
 % уравнения колебательных энергий:
-xi12_VE = -AD.e12/(AD.k*t12);
-xi3_VE = -AD.e3/(AD.k*t3);
+xi1234_VE = -AD.e1234/(AD.k*tv);
 
 % статистические суммы объединенной и антисимметричной мод
-Z12 = sum(AD.stw12 .* exp(xi12_VE));
+Z12 = sum(AD.stw12 .* exp(xi1234_VE));
 Z3 = sum(exp(xi3_VE));
 
 % суммы в уравнении внутренней энергии:
@@ -77,16 +61,16 @@ S_si_xi12_exi = sum(xi12_IE .* si_exi);
 S_si_xi3_exi = sum(xi3_IE .* si_exi);
 
 % суммы в уравнениях колебательных энергий:
-si_e12_exi12 = AD.stw12 .* e12_b .* exp(xi12_VE);
+si_e12_exi12 = AD.stw12 .* e12_b .* exp(xi1234_VE);
 e3_exi3 = e3_b .* exp(xi3_VE);
 
-S_si_e12_xi12_exi12 = sum(si_e12_exi12 .* xi12_VE);
+S_si_e12_xi12_exi12 = sum(si_e12_exi12 .* xi1234_VE);
 S_e3_xi3_exi3 = sum(e3_exi3 .* xi3_VE);
 
 S_si_e12_exi12 = sum(si_e12_exi12);
 S_e3_exi3 = sum(e3_exi3);
 
-S_si_xi12_exi12 = sum(AD.stw12 .* xi12_VE .* exp(xi12_VE));
+S_si_xi12_exi12 = sum(AD.stw12 .* xi1234_VE .* exp(xi1234_VE));
 S_xi3_exi3 = sum(xi3_VE .* exp(xi3_VE));
 
 %% релаксационные члены

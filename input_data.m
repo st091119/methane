@@ -71,7 +71,10 @@ for l = 1:data.lch4(4)
                 stw(i,j, k, l) = (j * k * (k + 1) * l * (l + 1)) / 4;
                 e1234(i, j, k, l) = 0;
                 for m = 1:4
-                    e1234(i,j, k, l) = e1234(i,j,k,l) + (data.h * data.c * ((ishka(m) - 1) *(stw(m) + data.d(m) / 2)));
+                    e1234(i,j, k, l) = e1234(i,j,k,l) + (data.h * data.c * ((ishka(m) - 1) *(stw(m) + data.d(m) / 2)));  %проверка на превышение энергии диссоциации
+                end
+                if (e1234(i, j, k, l) >= 36685.823189)
+                    e1234(i, j, k, l) = 0;
                 end
             end
         end
