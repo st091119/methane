@@ -20,8 +20,8 @@ sw_rt = 'm_w';     % '' - для sts, lsv - Losev, achsv - Achasov
 
 % начальные условия
 p0 = 101325;        % давление [Па] ! не влияет на решение, будет нужно только для обезразмеривания системы
-T0 = 2e3;           % температура [К] (какая у нас температура?)
-Tv0 = 273;    % колебательная температура мод 12 и 3 [К] (тут поменять)
+T0 = 1800;           % температура [К] (какая у нас температура?)
+Tv0 = 1200;    % колебательная температура мод 12 и 3 [К] (тут поменять)
 
 % конец интегрирования [с]
 t_fin = 1;
@@ -34,15 +34,31 @@ options = odeset('RelTol', 1e-8, 'AbsTol', 1e-8);
 % загрузка констант
 AD = input_data; 
 
+% ! проверка констант
+% disp('Input data:');
+% disp(AD.klop);
+% disp(AD.e1234);
+% disp(AD.inds);
 
-%{
+% ! Время релаксации колебательной энергии CH4-CH4 по формуле Милликена-Уайта
+ptau = m_w(T0); % [сек * Па]
+fprintf('tau(CH4-CH4) = %.6e сек at %.2f Па\n', ptau / p0, p0);
+
+% ! Распределение Больцмана по колебательным уровням при начальных условиях
+% n0 = p0 / (AD.k * T0); % плотность частиц [м^-3]
+% ni = vdf(n0, T0, AD);
+% disp('Initial vibrational distribution ni:');
+% disp(ni);
+
+
 % функция правых частей СОДУ
 RP = str2func(['rpart_mt_', sw_vr]);
 
 % среднее время пробега между столкновениями
-n0 = p0/(AD.k*T0); % [м^-3]
-sigma0 = pi*AD.r0^2; % [м^2]
-tau = (4*n0*sigma0*sqrt(AD.k*T0/(pi*AD.m)))^(-1); % [сек]
+n0 = p0 / (AD.k * T0); % [м^-3]
+sigma0 = pi * AD.r0^2; % [м^2]
+tau = (4 * n0 * sigma0 * sqrt(AD.k * T0 / (pi * AD.m)))^(-1); % [сек]
+disp(['Mean time between collisions tau = ' num2str(tau) ' sec']);
 
 AD.n0 = n0; AD.T0 = T0; AD.p0 = p0; AD.tau = tau; AD.sw_rt = sw_rt; 
 
@@ -50,7 +66,7 @@ AD.n0 = n0; AD.T0 = T0; AD.p0 = p0; AD.tau = tau; AD.sw_rt = sw_rt;
 tspan = [0, t_fin]./tau;
 
 % входной массив начальных условий в безразмерном виде
-Y0 = [1; Tv0/T0];
+Y0 = [1; Tv0 / T0];
 
 %% решение системы
 [X,Y] = ode15s(@(t,y) RP(t, y, AD), tspan, Y0, options);
@@ -62,26 +78,26 @@ time = X*tau;
 T = Y(:,1)*T0;
 TV = Y(:,2)*T0;
 
+disp('Computation finished.');
+disp(['Final time: ' num2str(time(end)) ' sec']);
+disp(['Final T: ' num2str(T(end)) ' K']);
+disp(['Final Tv: ' num2str(TV(end)) ' K']);
 
 %% проверка вычислительной ошибки
-d1 = error_check(Y0*T0, Y*T0, AD);
+d1 = error_check(Y0 * T0, Y(end, :) * T0, AD);
 
 tol = 1e-6;
 if (d1>tol)
-    disp('Big error!');
-    return;
+    disp(['Big error: ', num2str(d1)]);
+else
+    disp(['Error: ', num2str(d1)]);
 end
 
 %% графики
 semilogx(time, Y*T0,'LineWidth',2); 
 xlabel("t [sec]");
 ylabel('Temperature [K]');
-legend('T', 'T_{12}', 'T_3');
-title(['Initial conditions: T = ' num2str(T0) ' K, T_{12} = ' num2str(Tv0(1)) ' K, T_{3} = ' ...
-    num2str(Tv0(2)) ' K']);
+legend('T', 'T_v');
+title(['Initial conditions: T = ' num2str(T0) ' K, T_v = ' num2str(Tv0) ' K']);
 
-%тестировать код частями. у кустовой в статье есть как должно выглядеть на
-%графике. можно посчитать в мэйне и запустить. проверить время
-%колебательной релаксации. рассчитать руками эпс 0001 и подставить там про
-%омега и все такое эпс и1и2и3и4
-%}
+

@@ -1,37 +1,45 @@
 function d1 = error_check(Y0, Y1, AD)
 % проверка выполнения закона сохранения энергии: E = const
-% Y = [T T12 T3]
 
 % параметры газа в начальный момент времени и после
-var0 = num2cell(Y0);
-[T0, T12_0, T3_0] = deal(var0{:});
+Y0 = Y0(:);
+if numel(Y0) < 2
+	error('error_check: InvalidY0','Y0 must contain [T0 Tv0].');
+end
+[T0, Tv_0] = deal(Y0(1), Y0(2));
 
-var = num2cell(Y1, 1);
-[T, T12, T3] = deal(var{:});
+Y1 = Y1(:);
+if numel(Y1) < 2
+	error('error_check: InvalidY1','Y1 must contain [T Tv].');
+end
+[T, Tv] = deal(Y1(1), Y1(2));
 
 % безразмерные колебательные распределения молекул
-ni = vdf(1, T12, T3, AD);
-ni_0 = vdf(1, T12_0, T3_0, AD);
+n0 = 1 %AD.n0;
+n = 1 %AD.p0 / (AD.k * T); % плотность частиц [м^-3]
 
-% колебательныя энергия [Дж]
-e_v = sum((AD.eco2_i+AD.eco2_0).*ni);
-e_v0 = sum((AD.eco2_i+AD.eco2_0).*ni_0);
+ni = vdf(n, Tv, AD);
+ni_0 = vdf(n0, Tv_0, AD);
 
-% поступательная энергия смеси [Дж]
-e_tr = 1.5*AD.k*T;
-e_tr0 = 1.5*AD.k*T0;
+% колебательная энергия
+E = AD.e1234; % [Дж]
+e_v = sum(ni .* E);
+e_v0 = sum(ni_0 .* E);
 
-% вращательная энергия смеси [Дж] у метана домножаем на 3/2, т.к. это
-% нелинейная молекула
-e_rot = (AD.k.*T)*3/2;
-e_rot0 = (AD.k.*T0)*3/2;
+% поступательная энергия смеси
+e_tr = 1.5 * AD.k * T * n;
+e_tr0 = 1.5 * AD.k * T0 * n0;
 
-% внутренняя энергия смеси [Дж]
-E = e_tr+e_rot+e_v';
-E0 = e_tr0+e_rot0+e_v0;
+% вращательная энергия CH4 (модель жесткого ротора)
+e_rot = 1.5 * AD.k * T * n;
+e_rot0 = 1.5 * AD.k * T0 * n0;
+
+% внутренняя энергия газа [Дж/м^3]
+E = e_tr + e_rot + e_v;
+E0 = e_tr0 + e_rot0 + e_v0;
 
 % невязка
 u1 = E0 - E;
 
 % относительная невязка
-d1 = max(abs(u1)/E0);
+d1 = max(abs(u1) / E0);

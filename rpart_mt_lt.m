@@ -10,81 +10,47 @@ num_var = length(y);
 
 %% переменные в размерном виде
 % температура [К]
-temp = T_b*AD.T0;
-tv = Tv_b*AD.T0;    
-%% расчет колебательных распределений
-AD.lch4 = [9, 17, 9, 20];
-AD.d = [1, 2, 3, 3]; %степени вырожденности по модам
-z_vibr = 0;
-e_vibr = 0;
-for l = 1:AD.lch4(4)
-    for k = 1:AD.lch4(3)
-        for j = 1:AD.lch4(2)
-            for i = 1:AD.lch4(1) 
-                z_vibr = z_vibr + AD.stw(i, j, k, l) * (-(i * AD.e1000 + j * AD.e0100 + k * AD.e0010 + l * AD.e0001)/(AD.k * tv));
-                e_vibr = e_vibr + (1 / (z_vibr * AD.m)) * AD.stw(i, j, k, l) * AD.e1234(i, j, k, l) * (-(i * AD.e1000 + j * AD.e0100 + k * AD.e0010 + l * AD.e0001)/(AD.k * tv));
-            end
-        end
-    end
-end
+temp = T_b * AD.T0;
+tv = Tv_b * AD.T0;    
 
+%% расчет колебательных распределений (векторизовано на упрощенном наборе индексов)
 
-%% дополнительные параметры
-kT0 = AD.k*AD.T0; % [Дж]
+% inds = AD.inds;    % [N x 4]
+% I0 = inds(:,1); J0 = inds(:,2); K0 = inds(:,3); L0 = inds(:,4);
 
-% колебательная энергия молекул в безр. виде
-e1234_b = AD.e1234/kT0;
+% Веса и энергии
+w = AD.stw;        % [N x 1]
+E = AD.e1234;      % [N x 1]
 
-% вспомогательные величины
-% xi в уравнения будут отличаться в зависимости от суммирования
-% уравнение внутренней энергии:
-xi1234_IE = -(E1 + E2 + E3 + E4)/tv;
+% Фактор
+% sumE = I0 .* AD.e1000 + J0 .* AD.e0100 + K0 .* AD.e0010 + L0 .* AD.e0001; % [Дж]
+% fac = -(sumE) ./ (AD.k * tv);                                            % [безр.]
+fac = -(E) ./ (AD.k * tv);                                             % [безр.]
 
-xi = xi1234_IE;
-% уравнения колебательных энергий:
-xi1234_VE = -AD.e1234/(AD.k*tv);
+% Статсумма и колебательная энергия газа при температуре tv
+z_vibr = sum(w .* exp(fac));
+% e_vibr = (1 / (z_vibr * AD.m)) * sum(w .* E .* fac); % на единицу массы [Дж/кг]
 
-% статистические суммы объединенной и антисимметричной мод
-Z12 = sum(AD.stw12 .* exp(xi1234_VE));
-Z3 = sum(exp(xi3_VE));
+e_sum_e_sum =  sum(w .* E ./ (AD.k * tv) .* exp(fac))^2; % безр.
+e_sum_square = sum(w .* (E ./ (AD.k * tv)).^2 .* exp(fac)); % безр.
 
-% суммы в уравнении внутренней энергии:
-si_exi = AD.stw .* exp(xi);
-
-S_ei_si_xi12_exi = sum((eco2i_b+eco20_b) .* xi12_IE .* si_exi);
-S_ei_si_xi3_exi = sum((eco2i_b+eco20_b) .* xi3_IE .* si_exi);
-
-S_ei_si_exi = sum((eco2i_b+eco20_b) .* si_exi);
-
-S_si_xi12_exi = sum(xi12_IE .* si_exi);
-S_si_xi3_exi = sum(xi3_IE .* si_exi);
-
-% суммы в уравнениях колебательных энергий:
-si_e12_exi12 = AD.stw12 .* e12_b .* exp(xi1234_VE);
-e3_exi3 = e3_b .* exp(xi3_VE);
-
-S_si_e12_xi12_exi12 = sum(si_e12_exi12 .* xi1234_VE);
-S_e3_xi3_exi3 = sum(e3_exi3 .* xi3_VE);
-
-S_si_e12_exi12 = sum(si_e12_exi12);
-S_e3_exi3 = sum(e3_exi3);
-
-S_si_xi12_exi12 = sum(AD.stw12 .* xi1234_VE .* exp(xi1234_VE));
-S_xi3_exi3 = sum(xi3_VE .* exp(xi3_VE));
+% e_sum_e_sum =  sum(w .* sumE ./ (AD.k * AD.T0) .* exp(fac)) * sum(w .* sumE ./ (AD.k * tv) .* exp(fac)); % безр.
+% e_sum_square = sum(w .* sumE .* sumE ./ (AD.k * AD.T0) / (AD.k * tv) .* exp(fac)); % безр.
 
 %% релаксационные члены
 % обратная величина времени релаксации [сек^-1] по Милликену-Уайту
-times_inv = m_w(AD.p0, temp);
+times_inv = 1 / (m_w(temp) / AD.p0);
 
 % функции расчета rho*E_m/n [Дж]
-mE12 = @(t) sum(AD.stw12 .* AD.e12 .* exp(-AD.e12/(AD.k*t))) / sum(AD.stw12 .* exp(-AD.e12/(AD.k*t)));
-mE3 = @(t) sum(AD.e3 .* exp(-AD.e3/(AD.k*t))) / sum(exp(-AD.e3/(AD.k*t)));
+mEv = @(t) sum(w .* E .* exp(-E ./ (AD.k * t))) / sum(w .* exp(-E ./ (AD.k * t)));
+% mEv = @(t) sum(w .* sumE .* exp(-sumE ./ (AD.k * t))) / sum(w .* exp(-sumE ./ (AD.k * t)));
 
 % размерные релаксационные члены [Дж/сек]
-RVIB = (mEv(temp) - mEv(tv)) * times_inv; 
+RVIBR_DIM = (mEv(temp) - mEv(tv)) * times_inv; 
 
 % безразмерные релаксационные члены
-RVIB = RVIB * AD.tau/kT0;
+kT0 = AD.k * AD.T0;
+RVIBR = RVIBR_DIM * AD.tau / kT0;
 
 %% составляем матрицу коэффициентов перед производными А
 % единичная матрица 
@@ -92,28 +58,20 @@ A = eye(num_var);
 
 % уравнение сохранения энергии
 % T
-A(1,1) = 2.5;
+A(1, 1) = 3;
 
-% Tv12
-A(1,2) = -S_ei_si_xi12_exi/(Zv*T12_b) + S_ei_si_exi*S_si_xi12_exi/(Zv^2*T12_b);
-
-% Tv3
-A(1,3) = -S_ei_si_xi3_exi/(Zv*T3_b) + S_ei_si_exi*S_si_xi3_exi/(Zv^2*T3_b);
+% Tv
+A(1, 2) = e_sum_square / (z_vibr) - e_sum_e_sum / (z_vibr^2);
 
 % уравнение сохранения кол. энергии
-% объединенная мода
-A(2,2) = -S_si_e12_xi12_exi12/(Z12*T12_b) + S_si_e12_exi12*S_si_xi12_exi12/(Z12^2*T12_b);
-
-% антисимметричнаяя мода
-A(3,3) = -S_e3_xi3_exi3/(Z3*T3_b) + S_e3_exi3*S_xi3_exi3/(Z3^2*T3_b);
+A(2, 2) = A(1, 2);
 
 AA = sparse(A);
 
 %% составляем вектор-столбец правых частей B
 B = zeros(num_var,1);
-B(2) = RVIB_12;
-B(3) = RVIB_3;
+B(2) = RVIBR;
 
-dy = AA^(-1)*B;
+dy = AA^(-1) * B;
 
 end
