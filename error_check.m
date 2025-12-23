@@ -1,36 +1,25 @@
 function d1 = error_check(Y0, Y1, AD)
-% проверка выполнения закона сохранения энергии: E = const
-% Y = [T TV]
+    % Y0: [T0, Tv0]
+    % Y1: [T_vec, Tv_vec] - матрицы из ODE
+    
+    T0 = Y0(1); TV0 = Y0(2);
+    
+    % Начальная энергия
+    ni0 = vdf(1, TV0, AD);
+    E0 = (1.5 + 1.5)*AD.k*T0 + sum(AD.e1234 .* ni0);
 
-% параметры газа в начальный момент времени и после
-var0 = num2cell(Y0);
-[T0, TV_0] = deal(var0{:});
-
-var = num2cell(Y1, 1);
-[T, TV] = deal(var{:});
-
-% безразмерные колебательные распределения молекул
-ni = vdf(1, TV, AD);
-ni_0 = vdf(1, TV_0, AD);
-
-% колебательныя энергия [Дж]
-e_v = sum((AD.e1234) .* ni);
-e_v0 = sum((AD.e1234).*ni_0);
-
-% поступательная энергия смеси [Дж]
-e_tr = 1.5*AD.k*T;
-e_tr0 = 1.5*AD.k*T0;
-
-% вращательная энергия смеси [Дж]
-e_rot = (AD.k.*T)*3/2;
-e_rot0 = (AD.k.*T0)*3/2;
-
-% внутренняя энергия смеси [Дж]
-E = e_tr+e_rot+e_v';
-E0 = e_tr0+e_rot0+e_v0;
-
+    num_steps = size(Y1, 1);
 % невязка
-u1 = E0 - E;
+    u1 = zeros(num_steps, 1);
+    
+    for i = 1:num_steps
+        Ti = Y1(i, 1);
+        TVi = Y1(i, 2);
+        
+        ni = vdf(1, TVi, AD);
+        Ei = (1.5 + 1.5)*AD.k*Ti + sum(AD.e1234 .* ni);
+        u1(i) = Ei - E0;
+    end
 
-% относительная невязка
-d1 = max(abs(u1)/E0);
+    d1 = max(abs(u1) / E0);
+end

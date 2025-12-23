@@ -52,6 +52,7 @@ data.em = 151.4; %[К]
 data.uniquestates = 27540;
 data.lch4 = [9, 17, 9, 20];
 data.d = [1, 2, 3, 3]; %степени вырожденности по модам
+%{
 stw = zeros (data.lch4(1), data.lch4(2), data.lch4(3), data.lch4(4));
 e1234 = zeros (data.lch4(1), data.lch4(2), data.lch4(3), data.lch4(4));
 for l = 1:data.lch4(4)
@@ -76,3 +77,26 @@ end
 
 data.stw = stw;
 data.e1234 = e1234;
+%}
+  e_list = [];
+    stw_list = [];
+
+    for i = 1:data.lch4(1)
+        for j = 1:data.lch4(2)
+            for k = 1:data.lch4(3)
+                for l = 1:data.lch4(4)
+                    stw = (j)*(k)*(k+1)*(l)*(l+1)/4;
+                    ishka = [i, j, k, l];
+                    ei = sum(data.h * data.c * data.omega .* (ishka - 1 + data.d/2));
+                    
+                    if ei < data.D
+                        e_list(end+1) = ei;
+                        stw_list(end+1) = stw;
+                    end
+                end
+            end
+        end
+    end
+    data.e1234 = e_list'; 
+    data.stw = stw_list';   
+end

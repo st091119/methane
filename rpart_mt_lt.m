@@ -21,29 +21,29 @@ kT0 = AD.k*AD.T0; % [Дж]
 e1234_b = AD.e1234 ./ kT0;
 
 % вспомогательные величины
-xi = -(AD.e1234)./ (AD.k * tv);
+xi = -(AD.e1234)./ (AD.k * tv); % размер 9 17 9 20
 
 % статистические сумма
-Zv = sum(AD.stw .* exp(xi), 'all');
+Zv = sum(AD.stw .* exp(xi));
 
 % суммы в уравнениях:
 si_exi = AD.stw .* exp(xi);
-S_ei_si_xi_exi = sum((AD.e1234) .* xi .* si_exi, 'all');
+S_ei_si_xi_exi = sum((AD.e1234) .* xi .* si_exi);
 
-S_ei_si_exi = sum((AD.e1234) .* si_exi,"all");
+S_ei_si_exi = sum((AD.e1234) .* si_exi);
 
-S_si_xi_exi = sum(xi .* si_exi,"all");
+S_si_xi_exi = sum(xi .* si_exi);
 
 
 %% релаксационные члены
-% обратная величина времени релаксации [сек^-1] по Милликену-Уайту
+% обратная величина времени релаксации, умноженному на давление!!! по Милликену-Уайту 
 times_inv = m_w(AD.p0, temp);
 
 % функции расчета rho*E_m/n [Дж]
-mE = @(t) sum(AD.stw .* AD.e1234 .* exp(-AD.e1234/(AD.k*t)),"all") ./ sum(AD.stw .* exp(-AD.e1234./(AD.k*t)),"all");
+mE = @(t) sum(AD.stw .* AD.e1234 .* exp(-AD.e1234/(AD.k*t))) ./ sum(AD.stw .* exp(-AD.e1234./(AD.k*t)));
 
 % размерные релаксационные члены [Дж/сек]
-RVIB = (mE(temp) - mE(tv)) .* times_inv; 
+RVIB = (mE(temp) - mE(tv)) .* times_inv ./ AD.p0; 
 
 % безразмерные релаксационные члены
 RVIB = RVIB .* AD.tau/kT0;
@@ -69,7 +69,7 @@ AA = sparse(A);
 B = zeros(num_var,1);
 B(2) = RVIB;
 
-dy = AA^(-1).*B;
+dy = AA^(-1)*B;
 
 
 
