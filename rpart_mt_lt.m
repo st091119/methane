@@ -24,15 +24,15 @@ e1234_b = AD.e1234 ./ kT0;
 xi = -(AD.e1234)./ (AD.k * tv);
 
 % статистические сумма
-Zv = sum(AD.stw .* exp(xi));
+Zv = sum(AD.stw .* exp(xi), 'all');
 
 % суммы в уравнениях:
 si_exi = AD.stw .* exp(xi);
-S_ei_si_xi_exi = sum((AD.e1234 + AD.e0000) .* xi .* si_exi);
+S_ei_si_xi_exi = sum((AD.e1234) .* xi .* si_exi, 'all');
 
-S_ei_si_exi = sum((AD.e1234 + AD.e0000) .* si_exi);
+S_ei_si_exi = sum((AD.e1234) .* si_exi,"all");
 
-S_si_xi_exi = sum(xi .* si_exi);
+S_si_xi_exi = sum(xi .* si_exi,"all");
 
 
 %% релаксационные члены
@@ -40,13 +40,13 @@ S_si_xi_exi = sum(xi .* si_exi);
 times_inv = m_w(AD.p0, temp);
 
 % функции расчета rho*E_m/n [Дж]
-mE = @(t) sum(AD.stw .* AD.e1234 .* exp(-AD.e1234/(AD.k*t))) ./ sum(AD.stw .* exp(-AD.e1234./(AD.k*t)));
+mE = @(t) sum(AD.stw .* AD.e1234 .* exp(-AD.e1234/(AD.k*t)),"all") ./ sum(AD.stw .* exp(-AD.e1234./(AD.k*t)),"all");
 
 % размерные релаксационные члены [Дж/сек]
-RVIB = (mE(temp) - mE(tv)) * times_inv; 
+RVIB = (mE(temp) - mE(tv)) .* times_inv; 
 
 % безразмерные релаксационные члены
-RVIB = RVIB * AD.tau/kT0;
+RVIB = RVIB .* AD.tau/kT0;
 
 %% составляем матрицу коэффициентов перед производными А
 % единичная матрица 
@@ -54,14 +54,14 @@ A = eye(num_var);
 
 % уравнение сохранения энергии
 % T
-A(1,1) = 2.5;
+A(1,1) = 3;
 
 % Tv
-A(1,2) = -S_ei_si_xi_exi/(Zv*Tv_b) + S_ei_si_exi*S_si_xi_exi/(Zv^2*Tv_b);
+A(1,2) = -S_ei_si_xi_exi ./(Zv .* Tv_b) + S_ei_si_exi .* S_si_xi_exi ./ (Zv.^2 .* Tv_b);
 
 
 % уравнение сохранения кол. энергии
-A(2,2) = -S_ei_si_xi_exi/(Zv*Tv_b) + S_ei_si_exi*S_si_xi_exi/(Zv^2*Tv_b);
+A(2,2) = -S_ei_si_xi_exi ./ (Zv .* Tv_b) + S_ei_si_exi .* S_si_xi_exi ./ (Zv.^2 .* Tv_b);
 
 AA = sparse(A);
 
@@ -69,6 +69,8 @@ AA = sparse(A);
 B = zeros(num_var,1);
 B(2) = RVIB;
 
-dy = AA^(-1)*B;
+dy = AA^(-1).*B;
+
+
 
 end

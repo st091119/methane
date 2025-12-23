@@ -50,7 +50,7 @@ AD.n0 = n0; AD.T0 = T0; AD.p0 = p0; AD.tau = tau; AD.sw_rt = sw_rt;
 tspan = [0, t_fin]./tau;
 
 % входной массив начальных условий в безразмерном виде
-Y0 = [1; Tv0/T0];
+Y0 = [1; Tv0'/T0];
 
 %% решение системы
 [X,Y] = ode15s(@(t,y) RP(t, y, AD), tspan, Y0, options);
@@ -76,12 +76,7 @@ end
 semilogx(time, Y*T0,'LineWidth',2); 
 xlabel("t [sec]");
 ylabel('Temperature [K]');
-legend('T', 'T_{12}', 'T_3');
-title(['Initial conditions: T = ' num2str(T0) ' K, T_{12} = ' num2str(Tv0(1)) ' K, T_{3} = ' ...
-    num2str(Tv0(2)) ' K']);
+legend('T', 'T_V');
+title(['Initial conditions: T = ' num2str(T0) ' K, T_V = ' num2str(Tv0) ' K']);
 
-%тестировать код частями. у кустовой в статье есть как должно выглядеть на
-%графике. можно посчитать в мэйне и запустить. проверить время
-%колебательной релаксации. рассчитать руками эпс 0001 и подставить там про
-%омега и все такое эпс и1и2и3и4
 
