@@ -38,15 +38,27 @@ e_sum_square = sum(w .* (E ./ (AD.k * tv)).^2 .* exp(fac)); % безр.
 % e_sum_square = sum(w .* sumE .* sumE ./ (AD.k * AD.T0) / (AD.k * tv) .* exp(fac)); % безр.
 
 %% релаксационные члены
-% обратная величина времени релаксации [сек^-1] по Милликену-Уайту
-times_inv = 1 / (m_w(temp) / AD.p0);
+% обратная величина времени релаксации [сек^-1]
+if strcmp(AD.sw_rt, 'fho')
+    res_fho = relaxation_time_kinetic(temp, AD.fho_alpha, AD.fho_e_m, ...
+                                      AD.fho_steric2, AD.fho_steric4);
+    p_tau = res_fho.ptau_total * 101325; % [атм*с] -> [Па*с]
+else
+    fun_times = str2func(AD.sw_rt);
+    p_tau = fun_times(temp);
+end
+
+times_inv = 1 / (p_tau / AD.p0);
 
 % функции расчета rho*E_m/n [Дж]
 mEv = @(t) sum(w .* E .* exp(-E ./ (AD.k * t))) / sum(w .* exp(-E ./ (AD.k * t)));
+% disp(['mEv(temp) = ' num2str(mEv(temp)) ' J, temp = ' num2str(temp) ' K']);
+% disp(['mEv(tv) = ' num2str(mEv(tv)) ' J, tv = ' num2str(tv) ' K']);
 % mEv = @(t) sum(w .* sumE .* exp(-sumE ./ (AD.k * t))) / sum(w .* exp(-sumE ./ (AD.k * t)));
 
 % размерные релаксационные члены [Дж/сек]
 RVIBR_DIM = (mEv(temp) - mEv(tv)) * times_inv; 
+% disp(['RVIBR_DIM = ' num2str(RVIBR_DIM) ' J/s']);
 
 % безразмерные релаксационные члены
 kT0 = AD.k * AD.T0;
