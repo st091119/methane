@@ -40,7 +40,8 @@ e_sum_square = sum(w .* (E ./ (AD.k * tv)).^2 .* exp(fac)); % безр.
 %% релаксационные члены
 % обратная величина времени релаксации [сек^-1]
 if strcmp(AD.sw_rt, 'fho')
-    res_fho = relaxation_time_kinetic(temp, AD.fho_alpha, AD.fho_e_m, ...
+    res_fho = relaxation_time_kinetic(temp, AD.fho_alpha2, AD.fho_e_m2, ...
+                                      AD.fho_alpha4, AD.fho_e_m4, ...
                                       AD.fho_steric2, AD.fho_steric4);
     p_tau = res_fho.ptau_total * 101325; % [атм*с] -> [Па*с]
 else

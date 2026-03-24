@@ -22,10 +22,12 @@ sw_vr = 'lt';  % правые части: sts или lt
 sw_rt = 'm_w'; % ! время релаксации: Landay-Teller: m_w - Milliken-White, vt_rel_time_wang - Wang-Springer, fho - FHO model
 
 % параметры FHO модели (используются при sw_rt = 'fho')
-fho_alpha   = 4.6947967158e+10;    % [м^-1] параметр потенциала Морзе
-fho_e_m     = 9.5648964013e+02;    % [К]    глубина потенциала Морзе / k_B
-fho_steric2 = 6.4499971926e-02;    % стерический фактор для моды 2
-fho_steric4 = 6.7853797863e-03;    % стерический фактор для моды 4
+fho_alpha2  = 4.3479e10;     % [м^-1] параметр потенциала Морзе, мода 2
+fho_e_m2    = 1434.2;        % [К]    глубина потенциала / k_B, мода 2
+fho_alpha4  = 6.6145e10;     % [м^-1] параметр потенциала Морзе, мода 4
+fho_e_m4    = 280.0;         % [К]    глубина потенциала / k_B, мода 4
+fho_steric2 = 0.0397;        % стерический фактор для моды 2
+fho_steric4 = 0.0050;        % стерический фактор для моды 4
 
 % начальные условия
 p0 = 101325;        % давление [Па] ! не влияет на решение, будет нужно только для обезразмеривания системы
@@ -57,7 +59,7 @@ ptau_ws = vt_rel_time_wang(T0); % [сек * Па]
 fprintf('tau_WS(CH4-CH4) = %.6e сек at %.2f Pa and %.2f K\n', ptau_ws / p0, p0, T0);
 
 % ! Время релаксации по FHO модели
-res_fho = relaxation_time_kinetic(T0, fho_alpha, fho_e_m, fho_steric2, fho_steric4);
+res_fho = relaxation_time_kinetic(T0, fho_alpha2, fho_e_m2, fho_alpha4, fho_e_m4, fho_steric2, fho_steric4);
 ptau_fho = res_fho.ptau_total * 101325; % [атм*с] -> [Па*с]
 fprintf('tau_FHO(CH4-CH4) = %.6e сек at %.2f Pa and %.2f K\n', ptau_fho / p0, p0, T0);
 
@@ -83,8 +85,10 @@ AD.n0 = n0; AD.T0 = T0; AD.p0 = p0; AD.tau = tau;
 AD.sw_rt = sw_rt;
 
 % сохранить параметры FHO в структуре AD (для rpart_mt_lt при sw_rt = 'fho')
-AD.fho_alpha   = fho_alpha;
-AD.fho_e_m     = fho_e_m;
+AD.fho_alpha2  = fho_alpha2;
+AD.fho_e_m2    = fho_e_m2;
+AD.fho_alpha4  = fho_alpha4;
+AD.fho_e_m4    = fho_e_m4;
 AD.fho_steric2 = fho_steric2;
 AD.fho_steric4 = fho_steric4;
 
@@ -160,7 +164,7 @@ for iT = 1:length(T_comp)
     Ti = T_comp(iT);
     ptau_comp_mw(iT)  = m_w(Ti);               % [Па*с]
     ptau_comp_ws(iT)  = vt_rel_time_wang(Ti);   % [Па*с]
-    res_i = relaxation_time_kinetic(Ti, fho_alpha, fho_e_m, fho_steric2, fho_steric4);
+    res_i = relaxation_time_kinetic(Ti, fho_alpha2, fho_e_m2, fho_alpha4, fho_e_m4, fho_steric2, fho_steric4);
     ptau_comp_fho(iT) = res_i.ptau_total * 101325; % [атм*с] -> [Па*с]
 end
 
