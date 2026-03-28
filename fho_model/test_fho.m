@@ -225,4 +225,184 @@ for iT = 1:length(T_vv_list)
     fprintf('\n');
 end
 
+%% ══════════════════════════════════════════════════════════════
+%  Detailed balance tests — VT backward rates
+%  ══════════════════════════════════════════════════════════════
+%
+%  Statistical weight of CH4 state (i1, i2, i3, i4):
+%    s = (i2+1)(i3+1)(i3+2)(i4+1)(i4+2) / 4
+%
+%  VT detailed balance:
+%    k_{i'->i}(T) = k_{i->i'}(T) * (s_i / s_i') * exp((eps_i' - eps_i) / (kT))
+%
+%  Forward: deactivation i -> i-1 (exothermic)
+%  Backward: excitation i-1 -> i (endothermic)
+
+fprintf('\n');
+fprintf('%s\n', repmat('=', 1, 120));
+fprintf('Detailed Balance — VT backward rates\n');
+fprintf('%s\n', repmat('-', 1, 120));
+
+% Quick sanity check: stat weights
+test_states = {[0,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1], [0,0,1,1]};
+fprintf('Statistical weights check:\n');
+for ist = 1:length(test_states)
+    st = test_states{ist};
+    sw = detailed_balance('stat_weight', st);
+    fprintf('  s(%d,%d,%d,%d) = %.1f\n', st(1), st(2), st(3), st(4), sw);
+end
+fprintf('\n');
+
+T_db_test = [300, 500, 1000, 1400];
+
+% VT2 cases: mode 2, single-quantum transitions
+vt2_db_cases = {
+    % state_i       state_f       steric        alpha         e_m          label
+    [0,1,0,0], [0,0,0,0], steric2_test, alpha2_test, e_m2_test, 'VT2 (0,1,0,0)->(0,0,0,0)';
+    [0,2,0,0], [0,1,0,0], steric2_test, alpha2_test, e_m2_test, 'VT2 (0,2,0,0)->(0,1,0,0)';
+    [0,3,0,0], [0,2,0,0], steric2_test, alpha2_test, e_m2_test, 'VT2 (0,3,0,0)->(0,2,0,0)';
+};
+
+% VT4 cases: mode 4, single-quantum transitions
+vt4_db_cases = {
+    [0,0,0,1], [0,0,0,0], steric4_test, alpha4_test, e_m4_test, 'VT4 (0,0,0,1)->(0,0,0,0)';
+    [0,0,0,2], [0,0,0,1], steric4_test, alpha4_test, e_m4_test, 'VT4 (0,0,0,2)->(0,0,0,1)';
+    [0,0,0,3], [0,0,0,2], steric4_test, alpha4_test, e_m4_test, 'VT4 (0,0,0,3)->(0,0,0,2)';
+};
+
+all_vt_db_cases = [vt2_db_cases; vt4_db_cases];
+
+fprintf('%s\n', repmat('=', 1, 120));
+fprintf('%-32s %5s  %14s  %12s  %14s  %8s  %10s\n', ...
+        'Case', 'T', 'k_fwd [m3/s]', 'DB factor', 'k_bwd [m3/s]', 's_i/s_f', 'dE [cm-1]');
+fprintf('%s\n', repmat('-', 1, 120));
+
+for ic = 1:size(all_vt_db_cases, 1)
+    si     = all_vt_db_cases{ic, 1};
+    sf     = all_vt_db_cases{ic, 2};
+    steric = all_vt_db_cases{ic, 3};
+    alpha  = all_vt_db_cases{ic, 4};
+    e_m    = all_vt_db_cases{ic, 5};
+    label  = all_vt_db_cases{ic, 6};
+    
+    % Determine mode from state change
+    if si(2) ~= sf(2)
+        mode = 2;
+        qi = si(2); qf = sf(2);
+    else
+        mode = 4;
+        qi = si(4); qf = sf(4);
+    end
+    
+    % Energy gap dE = E_f - E_i [cm^-1]
+    dE_cm = AD.omega(1)*(sf(1)-si(1)) + AD.omega(2)*(sf(2)-si(2)) + ...
+            AD.omega(3)*(sf(3)-si(3)) + AD.omega(4)*(sf(4)-si(4));
+    
+    % Stat weight ratio
+    s_i = detailed_balance('stat_weight', si);
+    s_f = detailed_balance('stat_weight', sf);
+    s_ratio = s_i / s_f;
+    
+    for iT = 1:length(T_db_test)
+        T_val = T_db_test(iT);
+        
+        % Forward rate
+        k_fwd = rates_fho_vt(T_val, qi, qf, mode, steric, alpha, e_m, ...
+                            'g0_max', 80.0, 'n_steps', 10000);
+        
+        % Detailed balance factor and backward rate
+        db_fac = detailed_balance('db_factor_vt', si, sf, T_val, AD);
+        k_bwd  = k_fwd * db_fac;
+        
+        fprintf('  %-30s %5d  %14.6e  %12.6e  %14.6e  %8.3f  %10.1f\n', ...
+                label, T_val, k_fwd, db_fac, k_bwd, s_ratio, dE_cm);
+    end
+    fprintf('\n');
+end
+
+%% ══════════════════════════════════════════════════════════════
+%  Detailed balance tests — VV backward rates
+%  ══════════════════════════════════════════════════════════════
+%
+%  VV detailed balance:
+%    k_{f,kf->i,k}(T) = k_{i,k->f,kf}(T) * (s_i*s_k)/(s_f*s_kf) 
+%                       * exp((eps_f + eps_kf - eps_i - eps_k) / (kT))
+
+fprintf('\n');
+fprintf('%s\n', repmat('=', 1, 130));
+fprintf('Detailed Balance — VV backward rates\n');
+fprintf('%s\n', repmat('-', 1, 130));
+
+% VV cases for detailed balance
+vv_db_cases = {
+    % si          sf          sk          skf         svt              svv              label
+    [0,0,1,0], [0,0,0,1], [0,2,0,1], [0,2,0,1], steric_vt_v3,   steric_vv_34s,   'VV_{3-4}^s';
+    [0,0,1,0], [0,0,0,2], [0,0,0,0], [0,0,0,0], steric_vt_v3_4, steric_vv_34d,   'VV_{3-4}^d';
+    [0,0,1,0], [0,0,0,1], [0,0,0,0], [0,0,0,1], steric_vt_v3,   steric_vv_34_4d, 'VV_{3-4,4}^d';
+};
+
+% Higher quantum transitions
+vv_db_cases_higher = {
+    [0,0,2,0], [0,0,1,1], [0,2,0,1], [0,2,0,1], steric_vt_v3,   steric_vv_34s,   'VV_{3-4}^s (i3=2)';
+    [0,0,2,0], [0,0,1,1], [0,0,0,0], [0,0,0,1], steric_vt_v3,   steric_vv_34_4d, 'VV_{3-4,4}^d (i3=2)';
+};
+
+all_vv_db_cases = [vv_db_cases; vv_db_cases_higher];
+
+T_db_vv = [300, 500, 1000, 1400];
+
+fprintf('%s\n', repmat('=', 1, 130));
+fprintf('%-26s %5s  %14s  %12s  %14s  %18s  %10s\n', ...
+        'Case', 'T', 'k_fwd [m3/s]', 'DB factor', 'k_bwd [m3/s]', 's_i*s_k/(s_f*s_kf)', 'dE [cm-1]');
+fprintf('%s\n', repmat('-', 1, 130));
+
+for ic = 1:size(all_vv_db_cases, 1)
+    si  = all_vv_db_cases{ic, 1};
+    sf  = all_vv_db_cases{ic, 2};
+    sk  = all_vv_db_cases{ic, 3};
+    skf = all_vv_db_cases{ic, 4};
+    svt = all_vv_db_cases{ic, 5};
+    svv = all_vv_db_cases{ic, 6};
+    lbl = all_vv_db_cases{ic, 7};
+    
+    % Energy defect dE = E_f + E_kf - E_i - E_k [cm^-1]
+    dE_cm = AD.omega(1)*((sf(1)+skf(1))-(si(1)+sk(1))) + ...
+            AD.omega(2)*((sf(2)+skf(2))-(si(2)+sk(2))) + ...
+            AD.omega(3)*((sf(3)+skf(3))-(si(3)+sk(3))) + ...
+            AD.omega(4)*((sf(4)+skf(4))-(si(4)+sk(4)));
+    
+    % Stat weight ratio
+    s_i   = detailed_balance('stat_weight', si);
+    s_f   = detailed_balance('stat_weight', sf);
+    s_k   = detailed_balance('stat_weight', sk);
+    s_kf  = detailed_balance('stat_weight', skf);
+    s_ratio = (s_i * s_k) / (s_f * s_kf);
+    
+    for iT = 1:length(T_db_vv)
+        T_val = T_db_vv(iT);
+        
+        % Forward rate
+        k_fwd = rates_fho_vv(T_val, si, sf, sk, skf, svt, svv, ...
+                            alpha4_test, e_m4_test, ...
+                            'g0_max', 80.0, 'n_steps', 10000);
+        
+        % Detailed balance factor and backward rate
+        db_fac = detailed_balance('db_factor_vv', si, sf, sk, skf, T_val, AD);
+        k_bwd  = k_fwd * db_fac;
+        
+        fprintf('  %-24s %5d  %14.6e  %12.6e  %14.6e  %18.4f  %10.1f\n', ...
+                lbl, T_val, k_fwd, db_fac, k_bwd, s_ratio, dE_cm);
+    end
+    fprintf('\n');
+end
+
+% Summary of energy defects
+fprintf('\nEnergy defects (harmonic, cm^-1):\n');
+fprintf('  VV_{3-4}^s:    dE = omega4 - omega3 = %.1f - %.1f = %.1f\n', ...
+        AD.omega(4), AD.omega(3), AD.omega(4) - AD.omega(3));
+fprintf('  VV_{3-4}^d:    dE = 2*omega4 - omega3 = %.1f - %.1f = %.1f\n', ...
+        2*AD.omega(4), AD.omega(3), 2*AD.omega(4) - AD.omega(3));
+fprintf('  VV_{3-4,4}^d:  dE = omega4 + omega4 - omega3 = %.1f - %.1f = %.1f\n', ...
+        2*AD.omega(4), AD.omega(3), 2*AD.omega(4) - AD.omega(3));
+
 fprintf('\nDone.\n');
