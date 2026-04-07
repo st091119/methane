@@ -1,15 +1,3 @@
-% Программа, моделирующая пространственно-однородную релаксацию чистого СО2
-% Предположения:
-%     - гарм. ос.
-%     - распределение Больцмана
-%     - общая колебательная температура симметричной и деформационной мод
-%     T12 (колеб темп всех мод равна)
-%     - учитываются только переходы VT2, VV-2-3, VV-1-2-3 (нужно VV,VT)
-%     - правые части рассчитываются 1) соотношение Ландау-Теллера, 
-%       2) осреднение поуровневых рел. чл. (модель SSH) (соотношения Л-Т
-%       ОБНОВИТЬ ФОРМУЛУ)
-%     - времена релаксации рассчитываются по соотношениям Лосева и Ачасова (не подходят, надо искать другие варианты)  
-
 clear
 
 % добавить папку fho_model в путь
@@ -18,7 +6,7 @@ addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
 %% входные параметры
 
 % свитчи
-sw_vr = 'lt';  % правые части: sts или lt
+sw_vr = 'lt';  % правые части: 'lt' (одна Tv) или 'sts' (VT2+VT4+VV34, четыре уравнения, см. rpart_mt_sts.m)
 sw_rt = 'm_w'; % ! время релаксации: Landay-Teller: m_w - Milliken-White, vt_rel_time_wang - Wang-Springer, fho - FHO model
 
 % параметры FHO модели (используются при sw_rt = 'fho')
@@ -32,7 +20,8 @@ fho_steric4 = 0.0050;        % стерический фактор для мод
 % начальные условия
 p0 = 101325;        % давление [Па] ! не влияет на решение, будет нужно только для обезразмеривания системы
 T0 = 1000;           % температура [К] (какая у нас температура?)
-Tv0 = 300;    % колебательная температура мод 12 и 3 [К] (тут поменять)
+Tv0 = 300;    % колебательная температура [К] для lt; для sts — начальные Tv2,Tv3,Tv4 ниже
+Tv20 = 300; Tv30 = 300; Tv40 = 300; % [К] только для sw_vr = 'sts'
 
 % конец интегрирования [с]
 t_fin = 1;
@@ -91,12 +80,19 @@ AD.fho_alpha4  = fho_alpha4;
 AD.fho_e_m4    = fho_e_m4;
 AD.fho_steric2 = fho_steric2;
 AD.fho_steric4 = fho_steric4;
+% для rpart_mt_sts (VV34): при необходимости задайте явно
+% AD.fho_steric_vt_v3 = sqrt(fho_steric2 * fho_steric4);
+% AD.fho_steric_vv_34s = 0.068;
 
 % интервал интегрирования в безразмерном виде
 tspan = [0, t_fin]./tau;
 
 % входной массив начальных условий в безразмерном виде
-Y0 = [1; Tv0 / T0];
+if strcmp(sw_vr, 'sts')
+    Y0 = [1; Tv20 / T0; Tv30 / T0; Tv40 / T0];
+else
+    Y0 = [1; Tv0 / T0];
+end
 
 %% решение системы для трёх моделей времени релаксации
 models = {'m_w', 'vt_rel_time_wang', 'fho'};
@@ -112,12 +108,24 @@ for im = 1:length(models)
     
     results(im).time = X_m * tau;
     results(im).T    = Y_m(:,1) * T0;
-    results(im).Tv   = Y_m(:,2) * T0;
+    if strcmp(sw_vr, 'sts')
+        results(im).Tv2 = Y_m(:,2) * T0;
+        results(im).Tv3 = Y_m(:,3) * T0;
+        results(im).Tv4 = Y_m(:,4) * T0;
+        results(im).Tv   = Y_m(:,2) * T0; % для обратной совместимости графиков
+    else
+        results(im).Tv   = Y_m(:,2) * T0;
+    end
     results(im).name = model_names{im};
     
     fprintf('  Final time: %s sec\n', num2str(results(im).time(end)));
     fprintf('  Final T:  %s K\n', num2str(results(im).T(end)));
-    fprintf('  Final Tv: %s K\n', num2str(results(im).Tv(end)));
+    if strcmp(sw_vr, 'sts')
+        fprintf('  Final Tv2/Tv3/Tv4: %s / %s / %s K\n', ...
+            num2str(results(im).Tv2(end)), num2str(results(im).Tv3(end)), num2str(results(im).Tv4(end)));
+    else
+        fprintf('  Final Tv: %s K\n', num2str(results(im).Tv(end)));
+    end
     
     % проверка вычислительной ошибки
     d1 = error_check(Y0 * T0, Y_m(end, :) * T0, AD_run);
