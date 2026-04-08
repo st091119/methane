@@ -1,10 +1,8 @@
 function AD = ch4_relax_topology(AD)
-%CH4_RELAX_TOPOLOGY  Индексы соседей для VT2, VT4 и VV34 (ν₃↔ν₄, 1 квант).
-%   Добавляет в AD поля indjp_vt2, indjm_vt2, indjp_vt4, indjm_vt4,
-%   indvv34_dst (индекс (K-1,L+1) для уровня с индексом r), если их ещё нет.
+%CH4_RELAX_TOPOLOGY  Индексы соседей для VT2, VT4 и VV34, VV34d, VV34_4d.
 
 N = size(AD.inds, 1);
-if isfield(AD, 'indjp_vt2') && numel(AD.indjp_vt2) == N
+if isfield(AD, 'indj_vt2') && numel(AD.indj_vt2) == N
     return
 end
 
@@ -15,45 +13,40 @@ for r = 1:N
     map(key) = r;
 end
 
-indjp_vt2 = nan(N, 1);
-indjm_vt2 = nan(N, 1);
-indjp_vt4 = nan(N, 1);
-indjm_vt4 = nan(N, 1);
-indvv34_dst = nan(N, 1);
+indj_vt2 = nan(N, 1);      % (I,J,K,L) -> (I,J+1,K,L)
+indl_vt4 = nan(N, 1);      % (I,J,K,L) -> (I,J,K,L+1)
+indvv34 = nan(N, 1);       % (I,J,K,L) -> (I,J,K-1,L+1)
+indvv34d = nan(N, 1);      % (I,J,K,L) -> (I,J,K-1,L+2)
 
 for r = 1:N
     v = inds(r, :);
-    % VT2: J ± 1
+    % VT2: J -> J+1
     keyp = sprintf('%d,%d,%d,%d', v(1), v(2)+1, v(3), v(4));
     if isKey(map, keyp)
-        indjp_vt2(r) = map(keyp);
+        indj_vt2(r) = map(keyp);
     end
-    keym = sprintf('%d,%d,%d,%d', v(1), v(2)-1, v(3), v(4));
-    if v(2) >= 1 && isKey(map, keym)
-        indjm_vt2(r) = map(keym);
-    end
-    % VT4: L ± 1
+    % VT4: L -> L+1
     keyp = sprintf('%d,%d,%d,%d', v(1), v(2), v(3), v(4)+1);
     if isKey(map, keyp)
-        indjp_vt4(r) = map(keyp);
-    end
-    keym = sprintf('%d,%d,%d,%d', v(1), v(2), v(3), v(4)-1);
-    if v(4) >= 1 && isKey(map, keym)
-        indjm_vt4(r) = map(keym);
+        indl_vt4(r) = map(keyp);
     end
     % VV34: (K,L) -> (K-1, L+1)
     if v(3) >= 1
         key34 = sprintf('%d,%d,%d,%d', v(1), v(2), v(3)-1, v(4)+1);
         if isKey(map, key34)
-            indvv34_dst(r) = map(key34);
+            indvv34(r) = map(key34);
+        end
+        % VV34d: (K,L) -> (K-1, L+2)
+        key34d = sprintf('%d,%d,%d,%d', v(1), v(2), v(3)-1, v(4)+2);
+        if isKey(map, key34d)
+            indvv34d(r) = map(key34d);
         end
     end
 end
 
-AD.indjp_vt2 = indjp_vt2;
-AD.indjm_vt2 = indjm_vt2;
-AD.indjp_vt4 = indjp_vt4;
-AD.indjm_vt4 = indjm_vt4;
-AD.indvv34_dst = indvv34_dst;
+AD.indj_vt2 = indj_vt2;
+AD.indl_vt4 = indl_vt4;
+AD.indvv34 = indvv34;
+AD.indvv34d = indvv34d;
 
 end

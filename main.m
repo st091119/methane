@@ -5,8 +5,8 @@ addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
 
 %% входные параметры
 
-% свитчи
-sw_vr = 'lt';  % правые части: 'lt' (одна Tv) или 'sts' (VT2+VT4+VV34, четыре уравнения, см. rpart_mt_sts.m)
+% свитчи (используются для одиночного запуска при необходимости)
+sw_vr = 'lt';  % правые части: 'lt' или 'sts'
 sw_rt = 'm_w'; % ! время релаксации: Landay-Teller: m_w - Milliken-White, vt_rel_time_wang - Wang-Springer, fho - FHO model
 
 % параметры FHO модели (используются при sw_rt = 'fho')
@@ -20,8 +20,7 @@ fho_steric4 = 0.0050;        % стерический фактор для мод
 % начальные условия
 p0 = 101325;        % давление [Па] ! не влияет на решение, будет нужно только для обезразмеривания системы
 T0 = 1000;           % температура [К] (какая у нас температура?)
-Tv0 = 300;    % колебательная температура [К] для lt; для sts — начальные Tv2,Tv3,Tv4 ниже
-Tv20 = 300; Tv30 = 300; Tv40 = 300; % [К] только для sw_vr = 'sts'
+Tv0 = 300;    % колебательная температура [К] для двухтемпературной модели (lt и sts)
 
 % конец интегрирования [с]
 t_fin = 1;
@@ -59,9 +58,6 @@ fprintf('tau_FHO(CH4-CH4) = %.6e сек at %.2f Pa and %.2f K\n', ptau_fho / p0,
 % disp(ni);
 
 
-% функция правых частей СОДУ
-RP = str2func(['rpart_mt_', sw_vr]);
-
 % среднее время пробега между столкновениями
 n0 = p0 / (AD.k * T0); % [м^-3]
 sigma0 = pi * AD.r0^2; % [м^2]
@@ -70,7 +66,7 @@ disp(['Mean time between collisions tau = ' num2str(tau) ' sec']);
 
 AD.n0 = n0; AD.T0 = T0; AD.p0 = p0; AD.tau = tau;
 
-%% сохранить свитчи и параметры FHO в структуре AD для передачи в rpart_mt_lt
+%% сохранить свитчи и параметры FHO в структуре AD
 AD.sw_rt = sw_rt;
 
 % сохранить параметры FHO в структуре AD (для rpart_mt_lt при sw_rt = 'fho')
@@ -87,45 +83,34 @@ AD.fho_steric4 = fho_steric4;
 % интервал интегрирования в безразмерном виде
 tspan = [0, t_fin]./tau;
 
-% входной массив начальных условий в безразмерном виде
-if strcmp(sw_vr, 'sts')
-    Y0 = [1; Tv20 / T0; Tv30 / T0; Tv40 / T0];
-else
-    Y0 = [1; Tv0 / T0];
-end
+% входной массив начальных условий в безразмерном виде (двухтемпературная модель)
+Y0 = [1; Tv0 / T0];
 
-%% решение системы для трёх моделей времени релаксации
-models = {'m_w', 'vt_rel_time_wang', 'fho'};
-model_names = {'Milliken-White', 'Wang-Springer', 'FHO'};
+%% решение системы для четырех моделей времени релаксации
+% LT + MW, LT + Wang-Springer, LT + FHO, STS
+run_cases = struct( ...
+    'name',   {'Milliken-White', 'Wang-Springer', 'Landau-Teller (FHO)', 'STS'}, ...
+    'rp',     {'rpart_mt_lt',    'rpart_mt_lt',   'rpart_mt_lt',         'rpart_mt_sts'}, ...
+    'sw_rt',  {'m_w',            'vt_rel_time_wang', 'fho',              'fho'} ...
+);
 results = struct();
 
-for im = 1:length(models)
+for im = 1:length(run_cases)
     AD_run = AD;
-    AD_run.sw_rt = models{im};
+    AD_run.sw_rt = run_cases(im).sw_rt;
+    RP = str2func(run_cases(im).rp);
     
-    fprintf('\n--- Solving with %s ---\n', model_names{im});
+    fprintf('\n--- Solving with %s ---\n', run_cases(im).name);
     [X_m, Y_m] = ode15s(@(t,y) RP(t, y, AD_run), tspan, Y0, options);
     
     results(im).time = X_m * tau;
     results(im).T    = Y_m(:,1) * T0;
-    if strcmp(sw_vr, 'sts')
-        results(im).Tv2 = Y_m(:,2) * T0;
-        results(im).Tv3 = Y_m(:,3) * T0;
-        results(im).Tv4 = Y_m(:,4) * T0;
-        results(im).Tv   = Y_m(:,2) * T0; % для обратной совместимости графиков
-    else
-        results(im).Tv   = Y_m(:,2) * T0;
-    end
-    results(im).name = model_names{im};
+    results(im).Tv   = Y_m(:,2) * T0;
+    results(im).name = run_cases(im).name;
     
     fprintf('  Final time: %s sec\n', num2str(results(im).time(end)));
     fprintf('  Final T:  %s K\n', num2str(results(im).T(end)));
-    if strcmp(sw_vr, 'sts')
-        fprintf('  Final Tv2/Tv3/Tv4: %s / %s / %s K\n', ...
-            num2str(results(im).Tv2(end)), num2str(results(im).Tv3(end)), num2str(results(im).Tv4(end)));
-    else
-        fprintf('  Final Tv: %s K\n', num2str(results(im).Tv(end)));
-    end
+    fprintf('  Final Tv: %s K\n', num2str(results(im).Tv(end)));
     
     % проверка вычислительной ошибки
     d1 = error_check(Y0 * T0, Y_m(end, :) * T0, AD_run);
@@ -137,15 +122,15 @@ for im = 1:length(models)
     end
 end
 
-%% графики — все три модели на одном рисунке
-colors_T  = {'b', 'r', 'k'};
-colors_Tv = {'b', 'r', 'k'};
-styles_T  = {'-', '-', '-'};
-styles_Tv = {'--', '--', '--'};
+%% графики — все четыре подхода на одном рисунке
+colors_T  = {'b', 'r', 'k', [0 0.6 0]};
+colors_Tv = {'b', 'r', 'k', [0 0.6 0]};
+styles_T  = {'-', '-', '-', '-'};
+styles_Tv = {'--', '--', '--', '--'};
 
 figure; hold on;
 legend_entries = {};
-for im = 1:length(models)
+for im = 1:length(run_cases)
     semilogx(results(im).time, results(im).T, ...
         [colors_T{im} styles_T{im}], 'LineWidth', 2);
     semilogx(results(im).time, results(im).Tv, ...
