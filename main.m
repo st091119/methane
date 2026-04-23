@@ -85,13 +85,15 @@ tspan = [0, t_fin]./tau;
 
 % входной массив начальных условий в безразмерном виде (двухтемпературная модель)
 Y0 = [1; Tv0 / T0];
+Y0_3t = [1; Tv0 / T0; Tv0 / T0];
 
-%% решение системы для четырех моделей времени релаксации
-% LT + MW, LT + Wang-Springer, LT + FHO, STS
+%% решение системы для пяти моделей времени релаксации
+% LT + MW, LT + Wang-Springer, LT + FHO, STS, трехтемпературная STS
 run_cases = struct( ...
-    'name',   {'Milliken-White', 'Wang-Springer', 'Landau-Teller (FHO)', 'STS'}, ...
-    'rp',     {'rpart_mt_lt',    'rpart_mt_lt',   'rpart_mt_lt',         'rpart_mt_sts'}, ...
-    'sw_rt',  {'m_w',            'vt_rel_time_wang', 'fho',              'fho'} ...
+    'name',   {'Milliken-White', 'Wang-Springer', 'Landau-Teller (FHO)', 'STS', 'трехтемпературная модель'}, ...
+    'rp',     {'rpart_mt_lt',    'rpart_mt_lt',   'rpart_mt_lt',         'rpart_mt_sts', 'rpart_mt_3t_sts'}, ...
+    'sw_rt',  {'m_w',            'vt_rel_time_wang', 'fho',              'fho', 'fho'}, ...
+    'dim',    {2,                2,               2,                     2,     3} ...
 );
 results = struct();
 
@@ -101,42 +103,73 @@ for im = 1:length(run_cases)
     RP = str2func(run_cases(im).rp);
     
     fprintf('\n--- Solving with %s ---\n', run_cases(im).name);
-    [X_m, Y_m] = ode15s(@(t,y) RP(t, y, AD_run), tspan, Y0, options);
+    if run_cases(im).dim == 3
+        [X_m, Y_m] = ode15s(@(t,y) RP(t, y, AD_run), tspan, Y0_3t, options);
+    else
+        [X_m, Y_m] = ode15s(@(t,y) RP(t, y, AD_run), tspan, Y0, options);
+    end
     
     results(im).time = X_m * tau;
     results(im).T    = Y_m(:,1) * T0;
-    results(im).Tv   = Y_m(:,2) * T0;
+    if run_cases(im).dim == 3
+        results(im).T13 = Y_m(:,2) * T0;
+        results(im).T24 = Y_m(:,3) * T0;
+    else
+        results(im).Tv = Y_m(:,2) * T0;
+    end
     results(im).name = run_cases(im).name;
+    results(im).dim = run_cases(im).dim;
     
     fprintf('  Final time: %s sec\n', num2str(results(im).time(end)));
     fprintf('  Final T:  %s K\n', num2str(results(im).T(end)));
-    fprintf('  Final Tv: %s K\n', num2str(results(im).Tv(end)));
+    if run_cases(im).dim == 3
+        fprintf('  Final T13: %s K\n', num2str(results(im).T13(end)));
+        fprintf('  Final T24: %s K\n', num2str(results(im).T24(end)));
+    else
+        fprintf('  Final Tv: %s K\n', num2str(results(im).Tv(end)));
+    end
     
     % проверка вычислительной ошибки
-    d1 = error_check(Y0 * T0, Y_m(end, :) * T0, AD_run);
-    tol = 1e-6;
-    if d1 > tol
-        fprintf('  Big error: %s\n', num2str(d1));
+    if run_cases(im).dim == 2
+        d1 = error_check(Y0 * T0, Y_m(end, :) * T0, AD_run);
+        tol = 1e-6;
+        if d1 > tol
+            fprintf('  Big error: %s\n', num2str(d1));
+        else
+            fprintf('  Error: %s\n', num2str(d1));
+        end
     else
-        fprintf('  Error: %s\n', num2str(d1));
+        fprintf('  Error check skipped for 3T model\n');
     end
 end
 
-%% графики — все четыре подхода на одном рисунке
-colors_T  = {'b', 'r', 'k', [0 0.6 0]};
-colors_Tv = {'b', 'r', 'k', [0 0.6 0]};
-styles_T  = {'-', '-', '-', '-'};
-styles_Tv = {'--', '--', '--', '--'};
+%% графики — все подходы на одном рисунке
+colors_T  = {'b', 'r', 'k', [0 0.6 0], [0.5 0 0.8]};
+colors_Tv = {'b', 'r', 'k', [0 0.6 0], [0.5 0 0.8]};
+styles_T  = {'-', '-', '-', '-', '-'};
+styles_Tv = {'--', '--', '--', '--', '--'};
 
 figure; hold on;
 legend_entries = {};
 for im = 1:length(run_cases)
     semilogx(results(im).time, results(im).T, ...
         [colors_T{im} styles_T{im}], 'LineWidth', 2);
-    semilogx(results(im).time, results(im).Tv, ...
-        [colors_Tv{im} styles_Tv{im}], 'LineWidth', 2);
+    if results(im).dim == 3
+        semilogx(results(im).time, results(im).T13, ...
+            [colors_Tv{im} '--'], 'LineWidth', 2);
+        semilogx(results(im).time, results(im).T24, ...
+            [colors_Tv{im} '-.'], 'LineWidth', 2);
+    else
+        semilogx(results(im).time, results(im).Tv, ...
+            [colors_Tv{im} styles_Tv{im}], 'LineWidth', 2);
+    end
     legend_entries{end+1} = ['T — '  results(im).name];
-    legend_entries{end+1} = ['T_v — ' results(im).name];
+    if results(im).dim == 3
+        legend_entries{end+1} = ['T_{13} — ' results(im).name];
+        legend_entries{end+1} = ['T_{24} — ' results(im).name];
+    else
+        legend_entries{end+1} = ['T_v — ' results(im).name];
+    end
 end
 set(gca, 'XScale', 'log');
 xlabel('t [sec]');
