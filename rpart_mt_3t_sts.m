@@ -1,6 +1,6 @@
 function dy = rpart_mt_3t_sts(~, y, AD)
-% RPART_MT_3T_STS  Трехтемпературная CH4-модель: y = [T_b; T13_b; T24_b].
-% Источники считаются по state-to-state каналам VT2, VT4, VV34, VV34d, VV34_4d.
+%Трехтемпературная CH4-модель: y = [T_b; T13_b; T24_b].
+
 
 if ~exist('rates_fho_vt', 'file')
     addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
@@ -157,21 +157,38 @@ for ii = 1:numel(src)
     RVV34_4d(dst) = RVV34_4d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
 
-Rtot = RVT2 + RVT4 + RVV + RVV34d + RVV34_4d;
-R13 = sum((E13 / kT0) .* Rtot);
-R24 = sum((E24 / kT0) .* Rtot);
+% Веса инвариантов (как в формуле: i2*e0100+i4*e0001 и аналогично для 1,3).
+W13 = E13 / kT0;
+W24 = E24 / kT0;
 
-% Численные производные средних энергий по T13 и T24 для матрицы A.
-h = 1e-4;
-[e13_p, e24_p] = grouped_energies(T13_b + h, T24_b, AD, E13, E24);
-[e13_m, e24_m] = grouped_energies(max(T13_b - h, 1e-9), T24_b, AD, E13, E24);
-de13_dT13 = (e13_p - e13_m) / ((T13_b + h) - max(T13_b - h, 1e-9));
-de24_dT13 = (e24_p - e24_m) / ((T13_b + h) - max(T13_b - h, 1e-9));
+% Явное разложение релаксационных членов по каналам.
+R13_vv34 = sum(W13 .* RVV);
+R13_vv34d = sum(W13 .* RVV34d);
+R13_vv34_4d = sum(W13 .* RVV34_4d);
+R13 = R13_vv34 + R13_vv34d + R13_vv34_4d;
 
-[e13_p, e24_p] = grouped_energies(T13_b, T24_b + h, AD, E13, E24);
-[e13_m, e24_m] = grouped_energies(T13_b, max(T24_b - h, 1e-9), AD, E13, E24);
-de13_dT24 = (e13_p - e13_m) / ((T24_b + h) - max(T24_b - h, 1e-9));
-de24_dT24 = (e24_p - e24_m) / ((T24_b + h) - max(T24_b - h, 1e-9));
+R24_vt2 = sum(W24 .* RVT2);
+R24_vt4 = sum(W24 .* RVT4);
+R24_vv34 = sum(W24 .* RVV);
+R24_vv34d = sum(W24 .* RVV34d);
+R24_vv34_4d = sum(W24 .* RVV34_4d);
+R24 = R24_vt2 + R24_vt4 + R24_vv34 + R24_vv34d + R24_vv34_4d;
+
+% Аналитические производные средних энергий (без конечных разностей).
+E13m = sum(nco2i_b .* E13);
+E24m = sum(nco2i_b .* E24);
+E13sq_m = sum(nco2i_b .* (E13.^2));
+E24sq_m = sum(nco2i_b .* (E24.^2));
+E13E24_m = sum(nco2i_b .* (E13 .* E24));
+
+varE13 = E13sq_m - E13m^2;
+varE24 = E24sq_m - E24m^2;
+covE13E24 = E13E24_m - E13m * E24m;
+
+de13_dT13 = varE13 / (AD.k^2 * t13^2);
+de13_dT24 = covE13E24 / (AD.k^2 * t24^2);
+de24_dT13 = covE13E24 / (AD.k^2 * t13^2);
+de24_dT24 = varE24 / (AD.k^2 * t24^2);
 
 A = zeros(3, 3);
 A(1, 1) = 3;
@@ -189,16 +206,4 @@ end
 
 function kb = k_vt_bwd(kf, i, f, T, AD)
 kb = kf * (AD.stw(i) / AD.stw(f)) * exp((AD.e1234(f) - AD.e1234(i)) / (AD.k * T));
-end
-
-function [e13_nd, e24_nd] = grouped_energies(T13_b, T24_b, AD, E13, E24)
-t13 = max(T13_b, 1e-9) * AD.T0;
-t24 = max(T24_b, 1e-9) * AD.T0;
-xi = -(E13 ./ (AD.k * t13) + E24 ./ (AD.k * t24));
-f = AD.stw(:) .* exp(xi);
-Zv = sum(f);
-nbi = f ./ Zv;
-kT0 = AD.k * AD.T0;
-e13_nd = sum(nbi .* E13) / kT0;
-e24_nd = sum(nbi .* E24) / kT0;
 end
