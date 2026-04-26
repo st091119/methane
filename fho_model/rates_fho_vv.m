@@ -1,9 +1,9 @@
 function k_VV = rates_fho_vv(T, state_i, state_f, state_k, state_kf, ...
-                              steric_vt, steric_vv, alpha, e_m, varargin)
+                              steric_vv, alpha, e_m, varargin)
 % RATES_FHO_VV  Thermally-averaged VV rate coefficient k_VV(T) [m^3/s].
 %
 %   k_VV = rates_fho_vv(T, state_i, state_f, state_k, state_kf,
-%                        steric_vt, steric_vv, alpha, e_m)
+%                        steric_vv, alpha, e_m)
 %   k_VV = rates_fho_vv(..., 'g0_max', 80, 'n_steps', 10000)
 %
 %   Computes the thermally-averaged VV rate coefficient by integrating
@@ -19,14 +19,14 @@ function k_VV = rates_fho_vv(T, state_i, state_f, state_k, state_kf, ...
 %     state_f    - [f1 f2 f3 f4] final state,   molecule 1
 %     state_k    - [k1 k2 k3 k4] initial state, molecule 2
 %     state_kf   - [k1 k2 k3 k4] final state,   molecule 2
-%     steric_vt  - steric factor S_VT (enters epsilon)
 %     steric_vv  - steric factor S_VV (enters rho)
 %     alpha      - Morse potential range parameter [m^-1]
-%     e_m        - Morse well depth / k_B [K]
+%     e_m        - Morse well depth / k_B [K] (kept for parameter-set compatibility)
 %
 %   Optional name-value pairs:
 %     'g0_max'  - upper integration limit (default: 80)
 %     'n_steps' - number of grid points   (default: 10000)
+%     'gamma'   - VV coupling mass-ratio parameter (default: 0.5)
 %
 %   Output:
 %     k_VV  - rate coefficient [m^3/s]
@@ -37,9 +37,11 @@ function k_VV = rates_fho_vv(T, state_i, state_f, state_k, state_kf, ...
 p = inputParser;
 addParameter(p, 'g0_max',  80,    @isnumeric);
 addParameter(p, 'n_steps', 10000, @isnumeric);
+addParameter(p, 'gamma',   0.5,   @isnumeric);
 parse(p, varargin{:});
 g0_max  = p.Results.g0_max;
 n_steps = p.Results.n_steps;
+gamma   = p.Results.gamma;
 
 AD = input_data();
 
@@ -60,7 +62,7 @@ g  = g0 * sqrt(2 * kk * T / m_r);
 
 % --- VV transition probability ---
 P_VV = probabilties_fho_vv(g, state_i, state_f, state_k, state_kf, ...
-                            steric_vt, steric_vv, alpha, e_m);
+                            steric_vv, alpha, e_m, gamma);
 
 % --- VSS collision cross section sigma_coll(g) [m^2] ---
 x        = m_r * g.^2 / (2 * kk);

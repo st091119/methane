@@ -1,11 +1,10 @@
 function ptau = relaxation_time_kinetic_vv(T, si0, sf0, sk, skf, ...
-                                            steric_vt, steric_vv, ...
-                                            alpha, e_m, varargin)
+                                            steric_vv, alpha, e_m, varargin)
 % RELAXATION_TIME_KINETIC_VV  VV relaxation time using kinetic theory formulation.
 % ! Simplified evaluation
 %
 %   ptau = relaxation_time_kinetic_vv(T, si0, sf0, sk, skf,
-%                                     steric_vt, steric_vv, alpha, e_m)
+%                                     steric_vv, alpha, e_m)
 %
 %   Computes p*tau [atm*s] for a VV process using the kinetic theory
 %   formulation (same structure as VT kinetic):
@@ -22,7 +21,6 @@ function ptau = relaxation_time_kinetic_vv(T, si0, sf0, sk, skf, ...
 %     sf0        - template final state of mol 1   [1x4], mode 3 = 0
 %     sk         - initial state of mol 2 [1x4]
 %     skf        - final state of mol 2   [1x4]
-%     steric_vt  - steric factor S_VT
 %     steric_vv  - steric factor S_VV
 %     alpha      - Morse potential range parameter [m^-1]
 %     e_m        - Morse well depth / k_B [K]
@@ -30,6 +28,7 @@ function ptau = relaxation_time_kinetic_vv(T, si0, sf0, sk, skf, ...
 %   Optional name-value pairs:
 %     'n_steps'       - integration points for rate (default: 10000)
 %     'pop_threshold' - minimum population fraction (default: 1e-15)
+%     'gamma'         - VV coupling mass-ratio parameter (default: 0.5)
 %
 %   Output:
 %     ptau  - p*tau [atm*s], same size as T
@@ -40,9 +39,11 @@ function ptau = relaxation_time_kinetic_vv(T, si0, sf0, sk, skf, ...
 p = inputParser;
 addParameter(p, 'n_steps',       10000, @isnumeric);
 addParameter(p, 'pop_threshold', 1e-15, @isnumeric);
+addParameter(p, 'gamma',         0.5,   @isnumeric);
 parse(p, varargin{:});
 n_steps       = p.Results.n_steps;
 pop_threshold = p.Results.pop_threshold;
+gamma         = p.Results.gamma;
 
 AD = input_data();
 
@@ -84,8 +85,8 @@ for iT = 1:N
         sf_lev(3) = i3 - 1;    % mode 3 of final state
 
         k_if = rates_fho_vv(Ti, si_lev, sf_lev, sk, skf, ...
-                            steric_vt, steric_vv, alpha, e_m, ...
-                            'n_steps', n_steps);
+                            steric_vv, alpha, e_m, ...
+                            'n_steps', n_steps, 'gamma', gamma);
         rate_sum = rate_sum + x_i3 * k_if;
     end
 

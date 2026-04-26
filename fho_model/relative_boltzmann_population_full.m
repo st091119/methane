@@ -1,39 +1,20 @@
 function alpha_pop = relative_boltzmann_population_full(T, AD)
-% RELATIVE_BOLTZMANN_POPULATION_FULL  Ratio <E_2> / <E_4> of average
-%   single-mode vibrational energies at temperature T.
+% RELATIVE_BOLTZMANN_POPULATION_FULL  First-excited population ratio for modes 2 and 4.
 %
 %   alpha_pop = relative_boltzmann_population_full(T, AD)
+%
+%   alpha = (s_2(1) / s_4(1)) * exp(-(theta_2 - theta_4) / T),
+%   where theta_m = h*c*omega_m/k_B.
 
 hc    = AD.h * AD.c;
 omega = AD.omega;
 k_B   = AD.k;
 
-levels2 = AD.lch4(2);
-levels4 = AD.lch4(4);
+theta2 = hc * omega(2) / k_B;
+theta4 = hc * omega(4) / k_B;
+stat_ratio = stat_weight_mode(1, 2) / stat_weight_mode(1, 4);
 
-% mode 2
-sw2 = zeros(1, levels2);
-e2  = zeros(1, levels2);
-for n = 0:levels2-1
-    sw2(n+1) = stat_weight_mode(n, 2);
-    e2(n+1)  = hc * omega(2) * n;
-end
-b2  = sw2 .* exp(-e2 / (k_B * T));
-Z2  = sum(b2);
-E2  = sum(e2 .* b2) / Z2;
-
-% mode 4
-sw4 = zeros(1, levels4);
-e4  = zeros(1, levels4);
-for n = 0:levels4-1
-    sw4(n+1) = stat_weight_mode(n, 4);
-    e4(n+1)  = hc * omega(4) * n;
-end
-b4  = sw4 .* exp(-e4 / (k_B * T));
-Z4  = sum(b4);
-E4  = sum(e4 .* b4) / Z4;
-
-alpha_pop = E2 / E4;
+alpha_pop = stat_ratio .* exp(-(theta2 - theta4) ./ T);
 
 end
 

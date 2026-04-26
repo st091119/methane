@@ -28,20 +28,17 @@ Zv = sum(f);
 nco2i_b = f ./ Zv;
 
 %% стерические факторы VV (по умолчанию как в fho_model/test_fho.m)
-if ~isfield(AD, 'fho_steric_vt_v3')
-    AD.fho_steric_vt_v3 = sqrt(AD.fho_steric2 * AD.fho_steric4);
-end
 if ~isfield(AD, 'fho_steric_vv_34s')
-    AD.fho_steric_vv_34s = 0.068;
-end
-if ~isfield(AD, 'fho_steric_vt_v3_4')
-    AD.fho_steric_vt_v3_4 = 0.99;
+    AD.fho_steric_vv_34s = 1.0;
 end
 if ~isfield(AD, 'fho_steric_vv_34d')
-    AD.fho_steric_vv_34d = 1.0;
+    AD.fho_steric_vv_34d = 0.06;
+end
+if ~isfield(AD, 'fho_gamma_vv34d')
+    AD.fho_gamma_vv34d = 1.0;
 end
 if ~isfield(AD, 'fho_steric_vv_34_4d')
-    AD.fho_steric_vv_34_4d = 0.2;
+    AD.fho_steric_vv_34_4d = 1.0;
 end
 
 sk0 = [0, 0, 0, 0];
@@ -52,13 +49,17 @@ qnco2 = N;
 
 Jmx = AD.lch4(2) - 1;
 Lmx = AD.lch4(4) - 1;
+
+% VT2: deexcitation rates k_{J -> J-1} stored at index J (for J = 1..Jmx)
 k2_tab = zeros(Jmx + 1, 1);
-for Jq = 0:Jmx - 1
-    k2_tab(Jq + 1) = rates_fho_vt(temp, Jq, Jq + 1, 2, AD.fho_steric2, AD.fho_alpha2, AD.fho_e_m2, 'n_steps', 8000);
+for Jq = 1:Jmx
+    k2_tab(Jq) = rates_fho_vt(temp, Jq, Jq - 1, 2, AD.fho_steric2, AD.fho_alpha, AD.fho_e_m, 'n_steps', 8000);
 end
+
+% VT4: deexcitation rates k_{L -> L-1} stored at index L (for L = 1..Lmx)
 k4_tab = zeros(Lmx + 1, 1);
-for Lq = 0:Lmx - 1
-    k4_tab(Lq + 1) = rates_fho_vt(temp, Lq, Lq + 1, 4, AD.fho_steric4, AD.fho_alpha4, AD.fho_e_m4, 'n_steps', 8000);
+for Lq = 1:Lmx
+    k4_tab(Lq) = rates_fho_vt(temp, Lq, Lq - 1, 4, AD.fho_steric4, AD.fho_alpha, AD.fho_e_m, 'n_steps', 8000);
 end
 
 %% --- VT2 ---
@@ -68,12 +69,12 @@ vt2_src = find(~isnan(indj));
 
 for ii = 1:numel(vt2_src)
     r = vt2_src(ii);
-    dst = indj(r); % (I,J,K,L) -> (I,J+1,K,L)
+    dst = indj(r); % low J -> high J neighbor
     Jq = AD.inds(r, 2);
-    kf = k2_tab(Jq + 1) * n_scale;
-    kr = k_vt_bwd(kf, r, dst, temp, AD);
-    RVT2(r) = RVT2(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
-    RVT2(dst) = RVT2(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
+    kf = k2_tab(Jq + 1) * n_scale;      % forward: dst(J+1) -> r(J)
+    kr = k_vt_bwd(kf, dst, r, temp, AD); % backward: r(J) -> dst(J+1)
+    RVT2(r) = RVT2(r) + nco2i_b(dst) * kf - nco2i_b(r) * kr;
+    RVT2(dst) = RVT2(dst) + nco2i_b(r) * kr - nco2i_b(dst) * kf;
 end
 
 RVIBR = sum((E / kT0) .* RVT2);
@@ -85,12 +86,12 @@ vt4_src = find(~isnan(indl));
 
 for ii = 1:numel(vt4_src)
     r = vt4_src(ii);
-    dst = indl(r); % (I,J,K,L) -> (I,J,K,L+1)
+    dst = indl(r); % low L -> high L neighbor
     Lq = AD.inds(r, 4);
-    kf = k4_tab(Lq + 1) * n_scale;
-    kr = k_vt_bwd(kf, r, dst, temp, AD);
-    RVT4(r) = RVT4(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
-    RVT4(dst) = RVT4(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
+    kf = k4_tab(Lq + 1) * n_scale;      % forward: dst(L+1) -> r(L)
+    kr = k_vt_bwd(kf, dst, r, temp, AD); % backward: r(L) -> dst(L+1)
+    RVT4(r) = RVT4(r) + nco2i_b(dst) * kf - nco2i_b(r) * kr;
+    RVT4(dst) = RVT4(dst) + nco2i_b(r) * kr - nco2i_b(dst) * kf;
 end
 
 RVIBR = RVIBR + sum((E / kT0) .* RVT4);
@@ -113,8 +114,8 @@ for ii = 1:numel(vv_src)
     if isKey(kvv_cache, key)
         kvv_up(r) = kvv_cache(key);
     else
-        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vt_v3, AD.fho_steric_vv_34s, ...
-            AD.fho_alpha4, AD.fho_e_m4, 'n_steps', 6000);
+        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_34s, ...
+            AD.fho_alpha, AD.fho_e_m, 'n_steps', 6000);
         kvv_cache(key) = kv;
         kvv_up(r) = kv;
     end
@@ -148,8 +149,9 @@ for ii = 1:numel(vv34d_src)
     if isKey(kvv34d_cache, key)
         kvv34d_up(r) = kvv34d_cache(key);
     else
-        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vt_v3_4, AD.fho_steric_vv_34d, ...
-            AD.fho_alpha4, AD.fho_e_m4, 'n_steps', 6000);
+        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_34d, ...
+            AD.fho_alpha, AD.fho_e_m, 'n_steps', 6000, ...
+            'gamma', AD.fho_gamma_vv34d);
         kvv34d_cache(key) = kv;
         kvv34d_up(r) = kv;
     end
@@ -165,37 +167,9 @@ for ii = 1:numel(vv34d_src)
 end
 RVIBR = RVIBR + sum((E / kT0) .* RVV34d);
 
-%% --- VV34_4d: CH4(i)+CH4(k) <-> CH4(i3-1,i4+1)+CH4(k4+1) ---
-% Обратный канал CH4(i3+1,i4-1)+CH4(k4-1) идет через k_r.
-RVV34_4d = zeros(qnco2, 1);
-vv34_4d_src = find(~isnan(indvv34));
-kvv34_4d_up = zeros(N, 1);
-kvv34_4d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
-for ii = 1:numel(vv34_4d_src)
-    r = vv34_4d_src(ii);
-    dst = indvv34(r);
-    si = AD.inds(r, :);
-    sf = AD.inds(dst, :);
-    key = sprintf('%d_%d', si(3), si(4));
-    if isKey(kvv34_4d_cache, key)
-        kvv34_4d_up(r) = kvv34_4d_cache(key);
-    else
-        kv = rates_fho_vv(temp, si, sf, sk0, [0, 0, 0, 1], AD.fho_steric_vt_v3, AD.fho_steric_vv_34_4d, ...
-            AD.fho_alpha4, AD.fho_e_m4, 'n_steps', 6000);
-        kvv34_4d_cache(key) = kv;
-        kvv34_4d_up(r) = kv;
-    end
-end
-kvv34_4d_up = kvv34_4d_up * n_scale;
-for ii = 1:numel(vv34_4d_src)
-    r = vv34_4d_src(ii);
-    dst = indvv34(r);
-    kf = kvv34_4d_up(r);
-    kr = k_vt_bwd(kf, r, dst, temp, AD);
-    RVV34_4d(r) = RVV34_4d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
-    RVV34_4d(dst) = RVV34_4d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
-end
-RVIBR = RVIBR + sum((E / kT0) .* RVV34_4d);
+%% --- VV34_4d: CH4(i)+CH4(k4) <-> CH4(i3-1,i4+1)+CH4(k4+1) ---
+[RVV34_4d, RVV34_4d_partner_E] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
+RVIBR = RVIBR + sum((E / kT0) .* RVV34_4d) + RVV34_4d_partner_E / kT0;
 
 %% матрица A для двухтемпературной постановки
 e_sum_e_sum = sum(w .* (E ./ (AD.k * tv)) .* exp(fac))^2;

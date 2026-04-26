@@ -1,7 +1,7 @@
-function result = relaxation_time_kinetic(T, alpha2, e_m2, alpha4, e_m4, steric2, steric4, varargin)
+function result = relaxation_time_kinetic(T, alpha, e_m, steric2, steric4, varargin)
 % RELAXATION_TIME_KINETIC  VT & VV relaxation times using kinetic theory.
 %
-%   result = relaxation_time_kinetic(T, alpha2, e_m2, alpha4, e_m4, steric2, steric4)
+%   result = relaxation_time_kinetic(T, alpha, e_m, steric2, steric4)
 %   result = relaxation_time_kinetic(..., 'vv_cases', {case1; case2; ...})
 %
 %   Computes p*tau [atm*s] using the kinetic theory formulation:
@@ -18,10 +18,8 @@ function result = relaxation_time_kinetic(T, alpha2, e_m2, alpha4, e_m4, steric2
 %
 %   Inputs:
 %     T       - temperature [K] (scalar or vector)
-%     alpha2  - Morse range parameter for mode 2 [m^-1]
-%     e_m2    - Morse well depth / k_B for mode 2 [K]
-%     alpha4  - Morse range parameter for mode 4 [m^-1]
-%     e_m4    - Morse well depth / k_B for mode 4 [K]
+%     alpha   - common Morse range parameter [m^-1]
+%     e_m     - common Morse well depth / k_B [K]
 %     steric2 - steric factor for mode 2
 %     steric4 - steric factor for mode 4
 %
@@ -29,11 +27,12 @@ function result = relaxation_time_kinetic(T, alpha2, e_m2, alpha4, e_m4, steric2
 %     'n_steps'       - integration points for rate calculation (default: 10000)
 %     'pop_threshold' - minimum population fraction threshold (default: 1e-15)
 %     'vv_cases'      - cell array of VV processes, each row:
-%                        {si0, sf0, sk, skf, svt, svv, alpha_vv, e_m_vv, label}
+%                        {si0, sf0, sk, skf, svv, label}
+%                        or {si0, sf0, sk, skf, svv, gamma, label}
 %                        si0, sf0: template states (mode 3 = 1->0)
 %                        sk, skf:  partner molecule states
-%                        svt, svv: steric factors
-%                        alpha_vv, e_m_vv: Morse parameters for VV
+%                        svv: VV steric factor
+%                        gamma: VV coupling mass-ratio parameter
 %                        label: process label string
 %
 %   Output:
@@ -75,11 +74,11 @@ for iT = 1:N
     Ti = T(iT);
     c_vib = vibrational_heat_capacity(Ti, AD);
 
-    ptau2(iT) = compute_ptau_vt_mode(Ti, 2, alpha2, e_m2, steric2, ...
+    ptau2(iT) = compute_ptau_vt_mode(Ti, 2, alpha, e_m, steric2, ...
                                      levels, omega, hc, k_B, mass, c_vib, ...
                                      n_steps, pop_threshold);
 
-    ptau4(iT) = compute_ptau_vt_mode(Ti, 4, alpha4, e_m4, steric4, ...
+    ptau4(iT) = compute_ptau_vt_mode(Ti, 4, alpha, e_m, steric4, ...
                                      levels, omega, hc, k_B, mass, c_vib, ...
                                      n_steps, pop_threshold);
 
@@ -107,11 +106,14 @@ if ~isempty(vv_cases)
         sf0      = vv_cases{ic, 2};
         sk       = vv_cases{ic, 3};
         skf      = vv_cases{ic, 4};
-        svt      = vv_cases{ic, 5};
-        svv      = vv_cases{ic, 6};
-        alpha_vv = vv_cases{ic, 7};
-        e_m_vv   = vv_cases{ic, 8};
-        labels_vv{ic} = vv_cases{ic, 9};
+        svv      = vv_cases{ic, 5};
+        if size(vv_cases, 2) >= 7
+            gamma_vv = vv_cases{ic, 6};
+            labels_vv{ic} = vv_cases{ic, 7};
+        else
+            gamma_vv = 0.5;
+            labels_vv{ic} = vv_cases{ic, 6};
+        end
 
         ptau_vv_kin{ic}   = zeros(1, N);
         ptau_vv_simpl{ic} = zeros(1, N);
@@ -121,7 +123,7 @@ if ~isempty(vv_cases)
             c_vib = vibrational_heat_capacity(Ti, AD);
 
             [ptau_k, ptau_s] = compute_ptau_vv_mode(Ti, si0, sf0, sk, skf, ...
-                                                     svt, svv, alpha_vv, e_m_vv, ...
+                                                     svv, alpha, e_m, gamma_vv, ...
                                                      eps_3, max_level_3, ...
                                                      k_B, mass, c_vib, ...
                                                      n_steps, pop_threshold);
@@ -199,8 +201,8 @@ end
 %   Sum runs over mode-3 Boltzmann levels
 % =====================================================================
 function [ptau_kin, ptau_simpl] = compute_ptau_vv_mode(T, si0, sf0, sk, skf, ...
-                                                        steric_vt, steric_vv, ...
-                                                        alpha_vv, e_m_vv, ...
+                                                        steric_vv, ...
+                                                        alpha_vv, e_m_vv, gamma_vv, ...
                                                         eps_3, max_level_3, ...
                                                         k_B, mass, c_vib, ...
                                                         n_steps, pop_threshold)
@@ -226,8 +228,8 @@ for i3 = 1:max_level_3-1
     sf_lev(3) = i3 - 1;
 
     k_if = rates_fho_vv(T, si_lev, sf_lev, sk, skf, ...
-                        steric_vt, steric_vv, alpha_vv, e_m_vv, ...
-                        'n_steps', n_steps);
+                        steric_vv, alpha_vv, e_m_vv, ...
+                        'n_steps', n_steps, 'gamma', gamma_vv);
 
     rate_sum = rate_sum + x_i3 * k_if;
 
@@ -276,41 +278,21 @@ end
 
 
 % =====================================================================
-% Relative Boltzmann population (energy-weighted) of mode 2 to mode 4
+% Relative Boltzmann population of first excited mode 2 to mode 4 levels
 % =====================================================================
 function alpha_pop = relative_boltzmann_population_full(T, AD)
-% alpha = <E_2> / <E_4> where averages are over single-mode distributions
+% alpha = (s_2(1) / s_4(1)) * exp(-(theta_2 - theta_4) / T)
+% where theta_m = h*c*omega_m/k_B.
 
 hc    = AD.h * AD.c;
 omega = AD.omega;
 k_B   = AD.k;
 
-levels2 = AD.lch4(2);
-levels4 = AD.lch4(4);
+theta2 = hc * omega(2) / k_B;
+theta4 = hc * omega(4) / k_B;
+stat_ratio = stat_weight_mode(1, 2) / stat_weight_mode(1, 4);
 
-% mode 2
-sw2 = zeros(1, levels2);
-e2  = zeros(1, levels2);
-for n = 0:levels2-1
-    sw2(n+1) = stat_weight_mode(n, 2);
-    e2(n+1)  = hc * omega(2) * n;
-end
-b2  = sw2 .* exp(-e2 / (k_B * T));
-Z2  = sum(b2);
-E2  = sum(e2 .* b2) / Z2;
-
-% mode 4
-sw4 = zeros(1, levels4);
-e4  = zeros(1, levels4);
-for n = 0:levels4-1
-    sw4(n+1) = stat_weight_mode(n, 4);
-    e4(n+1)  = hc * omega(4) * n;
-end
-b4  = sw4 .* exp(-e4 / (k_B * T));
-Z4  = sum(b4);
-E4  = sum(e4 .* b4) / Z4;
-
-alpha_pop = E2 / E4;
+alpha_pop = stat_ratio .* exp(-(theta2 - theta4) ./ T);
 
 end
 
