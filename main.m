@@ -74,7 +74,8 @@ AD.fho_steric2 = fho_steric2;
 AD.fho_steric4 = fho_steric4;
 % для rpart_mt_sts (VV34): при необходимости задайте явно
 AD.fho_steric_vv_34s = 1.0;
-AD.fho_steric_vv_34d = 0.06;
+AD.fho_steric_vv_34d = 0.24;
+AD.fho_steric_vv_32d = 0.0025; % NEW PROCESS
 AD.fho_gamma_vv34d = 1.0;
 AD.fho_steric_vv_34_4d = 1.0;
 
