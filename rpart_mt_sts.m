@@ -32,7 +32,7 @@ if ~isfield(AD, 'fho_steric_vv_34s')
     AD.fho_steric_vv_34s = 1.0;
 end
 if ~isfield(AD, 'fho_steric_vv_34d')
-    AD.fho_steric_vv_34d = 0.06;
+    AD.fho_steric_vv_34d = 0.24;
 end
 if ~isfield(AD, 'fho_gamma_vv34d')
     AD.fho_gamma_vv34d = 1.0;
