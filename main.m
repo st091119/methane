@@ -7,7 +7,7 @@ addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
 
 % свитчи (используются для одиночного запуска при необходимости)
 sw_vr = 'lt';  % правые части: 'lt' или 'sts'
-sw_rt = 'm_w'; % ! время релаксации: Landay-Teller: m_w - Milliken-White, vt_rel_time_wang - Wang-Springer, fho - FHO model
+sw_rt = 'vt_rel_time_wang'; % ! время релаксации (LT): vt_rel_time_wang — Wang-Springer, fho — FHO
 
 % параметры FHO модели (используются при sw_rt = 'fho')
 fho_alpha   = 5.174e10;      % common Morse alpha [m^-1]
@@ -28,8 +28,10 @@ options = odeset('RelTol', 1e-8, 'AbsTol', 1e-8);
 
 %% дополнительные параметры
 
-% загрузка констант
-AD = input_data; 
+% загрузка констант (режим спектра 0..3 или полный — см. spectrum_mode в input_data.m)
+AD = input_data;
+fprintf('Spectrum: %s, lch4 = [%s], klop = %d\n', AD.spectrum_mode, ...
+    num2str(AD.lch4), AD.klop);
 
 % ! проверка констант
 % disp('Input data:');
@@ -38,9 +40,6 @@ AD = input_data;
 % disp(AD.inds);
 disp(AD.stw(1:10));
 
-% ! Время релаксации колебательной энергии CH4-CH4 по формуле Милликена-Уайта
-ptau = m_w(T0); % [сек * Па]
-fprintf('tau_MW(CH4-CH4) = %.6e сек at %.2f Pa and %.2f K\n', ptau / p0, p0, T0);
 ptau_ws = vt_rel_time_wang(T0); % [сек * Па]
 fprintf('tau_WS(CH4-CH4) = %.6e сек at %.2f Pa and %.2f K\n', ptau_ws / p0, p0, T0);
 
@@ -85,13 +84,13 @@ tspan = [0, t_fin]./tau;
 Y0 = [1; Tv0 / T0];
 Y0_3t = [1; Tv0 / T0; Tv0 / T0];
 
-%% решение системы для пяти моделей времени релаксации
-% LT + MW, LT + Wang-Springer, LT + FHO, STS, трехтемпературная STS
+%% решение системы для четырёх моделей времени релаксации
+% LT + Wang-Springer, LT + FHO, STS, трехтемпературная STS
 run_cases = struct( ...
-    'name',   {'Milliken-White', 'Wang-Springer', 'Landau-Teller (FHO)', 'STS', 'трехтемпературная модель'}, ...
-    'rp',     {'rpart_mt_lt',    'rpart_mt_lt',   'rpart_mt_lt',         'rpart_mt_sts', 'rpart_mt_3t_sts'}, ...
-    'sw_rt',  {'m_w',            'vt_rel_time_wang', 'fho',              'fho', 'fho'}, ...
-    'dim',    {2,                2,               2,                     2,     3} ...
+    'name',   {'Wang-Springer', 'Landau-Teller (FHO)', 'STS', 'трехтемпературная модель'}, ...
+    'rp',     {'rpart_mt_lt',   'rpart_mt_lt',         'rpart_mt_sts', 'rpart_mt_3t_sts'}, ...
+    'sw_rt',  {'vt_rel_time_wang', 'fho',              'fho', 'fho'}, ...
+    'dim',    {2,               2,                     2,     3} ...
 );
 results = struct();
 
@@ -142,10 +141,10 @@ for im = 1:length(run_cases)
 end
 
 %% графики — все подходы на одном рисунке
-colors_T  = {'b', 'r', 'k', [0 0.6 0], [0.5 0 0.8]};
-colors_Tv = {'b', 'r', 'k', [0 0.6 0], [0.5 0 0.8]};
-styles_T  = {'-', '-', '-', '-', '-'};
-styles_Tv = {'--', '--', '--', '--', '--'};
+colors_T  = {'r', 'k', [0 0.6 0], [0.5 0 0.8]};
+colors_Tv = {'r', 'k', [0 0.6 0], [0.5 0 0.8]};
+styles_T  = {'-', '-', '-', '-'};
+styles_Tv = {'--', '--', '--', '--'};
 
 figure; hold on;
 legend_entries = {};
@@ -177,28 +176,25 @@ title(['T_0 = ' num2str(T0) ' K, T_{v0} = ' num2str(Tv0) ' K']);
 grid on;
 
 %% ══════════════════════════════════════════════════════════════
-%  Сравнение трёх моделей: Milliken-White, Wang-Springer, FHO
+%  Сравнение Wang-Springer и FHO
 %  ══════════════════════════════════════════════════════════════
 T_comp = linspace(200, 1300, 80);
-ptau_comp_mw  = zeros(size(T_comp));
 ptau_comp_ws  = zeros(size(T_comp));
 ptau_comp_fho = zeros(size(T_comp));
 
 for iT = 1:length(T_comp)
     Ti = T_comp(iT);
-    ptau_comp_mw(iT)  = m_w(Ti);               % [Па*с]
     ptau_comp_ws(iT)  = vt_rel_time_wang(Ti);   % [Па*с]
     res_i = relaxation_time_kinetic(Ti, fho_alpha, fho_e_m, fho_steric2, fho_steric4);
     ptau_comp_fho(iT) = res_i.ptau_total * 101325; % [атм*с] -> [Па*с]
 end
 
 figure;
-semilogy(T_comp, ptau_comp_mw / 101325, 'b-', 'LineWidth', 2); hold on;
-semilogy(T_comp, ptau_comp_ws / 101325, 'r--', 'LineWidth', 2);
+semilogy(T_comp, ptau_comp_ws / 101325, 'b-', 'LineWidth', 2); hold on;
 semilogy(T_comp, ptau_comp_fho / 101325, 'k-.', 'LineWidth', 2);
 xlabel('T [K]');
 ylabel('p\tau [atm \cdot s]');
-legend('Milliken-White', 'Wang-Springer', 'FHO');
+legend('Wang-Springer', 'FHO');
 title('Сравнение времён VT релаксации CH4-CH4');
 grid on;
 

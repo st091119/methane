@@ -46,8 +46,19 @@ data.r0 = 3.737e-10; % CH4-CH4 [м]
 data.em = 151.4; % CH4-CH4, epsilon / k [К]
 
 % колебательная энергия и статвес
+% Режим спектра:
+%   'fast' — промежуточная сетка: квантовые числа I,J,K,L только 0..3 (быстрее STS/FHO).
+%   'full' — полная сетка [9,17,9,20] с отсечкой по энергии диссоциации D (как раньше).
+spectrum_mode = 'fast';
+
 data.klop = 0;
-data.lch4 = [9, 17, 9, 20];
+switch lower(spectrum_mode)
+    case 'fast'
+        data.lch4 = [4, 4, 4, 4];
+    otherwise
+        data.lch4 = [9, 17, 9, 20];
+end
+data.spectrum_mode = spectrum_mode;
 data.d = [1, 2, 3, 3]; % степени вырожденности по модам
 
 % Генерация индексов
