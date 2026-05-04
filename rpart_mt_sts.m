@@ -52,6 +52,21 @@ end
 if ~isfield(AD, 'sw_vv34_4d_model')
     AD.sw_vv34_4d_model = 'hard'; % 'hard' | 'easy' (legacy aliases: 'state' | 'macro')
 end
+if ~isfield(AD, 'n_steps_vv_easy')
+    AD.n_steps_vv_easy = 300;
+end
+if ~isfield(AD, 'use_vv34')
+    AD.use_vv34 = true;
+end
+if ~isfield(AD, 'use_vv34d')
+    AD.use_vv34d = true;
+end
+if ~isfield(AD, 'use_vv32d')
+    AD.use_vv32d = true;
+end
+if ~isfield(AD, 'use_vv34_4d')
+    AD.use_vv34_4d = true;
+end
 
 sk0 = [0, 0, 0, 0];
 n_scale = AD.n0 * AD.tau;
@@ -112,6 +127,7 @@ RVIBR = RVIBR + sum((E / kT0) .* RVT4);
 % Обратный переход (K-1,L+1)->(K,L), т.е. "K+1,L-1" относительно dst,
 % учитывается через k_r = detailed balance(k_f).
 RVV = zeros(qnco2, 1);
+if AD.use_vv34
 indvv34 = AD.indvv34;
 vv_src = find(~isnan(indvv34));
 kvv_up = zeros(N, 1);
@@ -141,13 +157,15 @@ for ii = 1:numel(vv_src)
     RVV(r) = RVV(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
     RVV(dst) = RVV(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
+end
 
 RVIBR = RVIBR + sum((E / kT0) .* RVV);
 
 %% --- VV34d: CH4(i) + CH4 <-> CH4(i3-1,i4+2) + CH4 ---
+if AD.use_vv34d
 vv34d_is_easy = strcmpi(AD.sw_vv34d_model, 'easy') || strcmpi(AD.sw_vv34d_model, 'macro');
 if vv34d_is_easy
-    n_steps_vv34d = 6000;
+    n_steps_vv34d = AD.n_steps_vv_easy;
     A34d = ch4_A_vv34d(temp, tv, tv, AD, n_steps_vv34d);
     eps3_vv = AD.e0010 - AD.e0000;
     eps4_vv = AD.e0001 - AD.e0000;
@@ -186,9 +204,11 @@ else
     end
     RVIBR = RVIBR + sum((E / kT0) .* RVV34d);
 end
+end
 
 %% --- VV32d: CH4(i) + CH4 <-> CH4(i2+2,i3-1) + CH4, VV^d_{3-2} ---
 RVV32d = zeros(qnco2, 1);
+if AD.use_vv32d
 indvv32d = AD.indvv32d;
 vv32d_src = find(~isnan(indvv32d));
 kvv32d_up = zeros(N, 1);
@@ -218,12 +238,14 @@ for ii = 1:numel(vv32d_src)
     RVV32d(r) = RVV32d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
     RVV32d(dst) = RVV32d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
+end
 RVIBR = RVIBR + sum((E / kT0) .* RVV32d);
 
 %% --- VV34_4d: CH4(i)+CH4(k4) <-> CH4(i3-1,i4+1)+CH4(k4+1) ---
+if AD.use_vv34_4d
 vv34_4d_is_easy = strcmpi(AD.sw_vv34_4d_model, 'easy') || strcmpi(AD.sw_vv34_4d_model, 'macro');
 if vv34_4d_is_easy
-    n_steps_vv34_4d = 6000;
+    n_steps_vv34_4d = AD.n_steps_vv_easy;
     B34 = ch4_B_vv34_4d(temp, tv, tv, AD, n_steps_vv34_4d);
     eps3_vv = AD.e0010 - AD.e0000;
     eps4_vv = AD.e0001 - AD.e0000;
@@ -231,6 +253,7 @@ if vv34_4d_is_easy
 else
     [RVV34_4d, RVV34_4d_partner_E] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
     RVIBR = RVIBR + sum((E / kT0) .* RVV34_4d) + RVV34_4d_partner_E / kT0;
+end
 end
 
 %% матрица A для двухтемпературной постановки

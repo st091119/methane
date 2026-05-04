@@ -62,6 +62,21 @@ end
 if ~isfield(AD, 'sw_vv34_4d_model')
     AD.sw_vv34_4d_model = 'hard'; % 'hard' | 'easy' (legacy aliases: 'state' | 'macro')
 end
+if ~isfield(AD, 'n_steps_vv_easy')
+    AD.n_steps_vv_easy = 1000;
+end
+if ~isfield(AD, 'use_vv34')
+    AD.use_vv34 = true;
+end
+if ~isfield(AD, 'use_vv34d')
+    AD.use_vv34d = true;
+end
+if ~isfield(AD, 'use_vv32d')
+    AD.use_vv32d = true;
+end
+if ~isfield(AD, 'use_vv34_4d')
+    AD.use_vv34_4d = true;
+end
 
 n_scale = AD.n0 * AD.tau;
 sk0 = [0, 0, 0, 0];
@@ -104,6 +119,7 @@ for ii = 1:numel(src)
 end
 
 RVV = zeros(N, 1);
+if AD.use_vv34
 src = find(~isnan(AD.indvv34));
 kvv_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
 for ii = 1:numel(src)
@@ -123,13 +139,15 @@ for ii = 1:numel(src)
     RVV(r) = RVV(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
     RVV(dst) = RVV(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
+end
 
 vv34d_is_easy = strcmpi(AD.sw_vv34d_model, 'easy') || strcmpi(AD.sw_vv34d_model, 'macro');
 RVV34d = zeros(N, 1);
 R13_vv34d = 0;
 R24_vv34d = 0;
+if AD.use_vv34d
 if vv34d_is_easy
-    n_steps_vv34d = 6000;
+    n_steps_vv34d = AD.n_steps_vv_easy;
     A34d = ch4_A_vv34d(temp, t13, t24, AD, n_steps_vv34d);
     mult_A34d = AD.n0 * A34d * n_scale / kT0;
     R13_vv34d = -mult_A34d * eps3;
@@ -156,8 +174,10 @@ else
         RVV34d(dst) = RVV34d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
     end
 end
+end
 
 RVV32d = zeros(N, 1);
+if AD.use_vv32d
 src = find(~isnan(AD.indvv32d));
 kvv32d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
 for ii = 1:numel(src)
@@ -178,18 +198,23 @@ for ii = 1:numel(src)
     RVV32d(r) = RVV32d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
     RVV32d(dst) = RVV32d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
+end
 
 vv34_4d_is_easy = strcmpi(AD.sw_vv34_4d_model, 'easy') || strcmpi(AD.sw_vv34_4d_model, 'macro');
 R13_vv34_4d = 0;
 R24_vv34_4d = 0;
+RVV34_4d = zeros(N, 1);
+RVV34_4d_partner_E24 = 0;
+if AD.use_vv34_4d
 if vv34_4d_is_easy
-    n_steps_vv34_4d = 6000;
+    n_steps_vv34_4d = AD.n_steps_vv_easy;
     B34 = ch4_B_vv34_4d(temp, t13, t24, AD, n_steps_vv34_4d);
     mult_B = AD.n0 * B34 * n_scale / kT0;
     R13_vv34_4d = -mult_B * eps3;
     R24_vv34_4d = 2 * mult_B * eps4;
 else
     [RVV34_4d, RVV34_4d_partner_E24] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
+end
 end
 
 % Веса инвариантов (как в формуле: i2*e0100+i4*e0001 и аналогично для 1,3).

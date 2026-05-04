@@ -14,7 +14,7 @@ kB = AD.k;
 eps3 = AD.e0010 - AD.e0000;
 eps4 = AD.e0001 - AD.e0000;
 
-T3s = max(T3star, 1e-12);
+T3s = max(T3star, 1e-12); 
 T4s = max(T4star, 1e-12);
 
 i3_max = AD.lch4(3) - 1;
@@ -30,13 +30,8 @@ for i4 = 0:i4_max
 end
 
 den = Z3 * Z4^2;
-if den <= 0 || ~isfinite(den)
-    B = 0;
-    return
-end
 
 cache_f = containers.Map('KeyType', 'char', 'ValueType', 'double');
-cache_r = containers.Map('KeyType', 'char', 'ValueType', 'double');
 
 steric = AD.fho_steric_vv_34_4d;
 alpha = AD.fho_alpha;
@@ -51,7 +46,7 @@ for i3 = 0:i3_max
             w = wpop * boltz;
 
             kf = 0;
-            if i3 >= 1 && i4 < i4_max && j4 < i4_max
+            if i3 >= 1 && i4 < i4_max && j4 < i4_max 
                 keyf = sprintf('%d_%d_%d', i3, i4, j4);
                 if isKey(cache_f, keyf)
                     kf = cache_f(keyf);
@@ -67,17 +62,18 @@ for i3 = 0:i3_max
 
             kr = 0;
             if i3 < i3_max && i4 >= 1 && j4 >= 1
-                keyr = sprintf('%d_%d_%d', i3, i4, j4);
-                if isKey(cache_r, keyr)
-                    kr = cache_r(keyr);
+                si_rev = [0, 0, i3 + 1, i4 - 1];
+                sf_rev = [0, 0, i3, i4];
+                sk_rev = [0, 0, 0, j4 - 1];
+                skf_rev = [0, 0, 0, j4];
+                keyr = sprintf('%d_%d_%d', si_rev(3), si_rev(4), sk_rev(4));
+                if isKey(cache_f, keyr)
+                    kf_rev = cache_f(keyr);
                 else
-                    si = [0, 0, i3, i4];
-                    sf = [0, 0, i3 + 1, i4 - 1];
-                    sk = [0, 0, 0, j4];
-                    skf = [0, 0, 0, j4 - 1];
-                    kr = rates_fho_vv(T, si, sf, sk, skf, steric, alpha, e_m, 'n_steps', n_steps);
-                    cache_r(keyr) = kr;
+                    kf_rev = rates_fho_vv(T, si_rev, sf_rev, sk_rev, skf_rev, steric, alpha, e_m, 'n_steps', n_steps);
+                    cache_f(keyr) = kf_rev;
                 end
+                kr = ch4_pair_backward(kf_rev, si_rev, sf_rev, sk_rev, skf_rev, T, AD);
             end
 
             acc = acc + w * (kf - kr);
@@ -97,4 +93,27 @@ switch mode
     otherwise
         error('ch4_B_vv34_4d:invalid_mode', 'mode must be 3 or 4.');
 end
+end
+
+function kb = ch4_pair_backward(kf, state_i, state_f, state_k, state_kf, T, AD)
+s_i = stat_w_pair(state_i);
+s_f = stat_w_pair(state_f);
+s_k = stat_w_pair(state_k);
+s_kf = stat_w_pair(state_kf);
+de = ch4_state_energy(state_f, AD) - ch4_state_energy(state_i, AD) + ...
+    ch4_state_energy(state_kf, AD) - ch4_state_energy(state_k, AD);
+kb = kf * (s_i * s_k) / (s_f * s_kf) * exp(de / (AD.k * T));
+end
+
+function s = stat_w_pair(state)
+s = (state(2) + 1) * (state(3) + 1) * (state(3) + 2) * ...
+    (state(4) + 1) * (state(4) + 2) / 4;
+end
+
+function e = ch4_state_energy(state, AD)
+eps1 = AD.e1000 - AD.e0000;
+eps2 = AD.e0100 - AD.e0000;
+eps3 = AD.e0010 - AD.e0000;
+eps4 = AD.e0001 - AD.e0000;
+e = state(1) * eps1 + state(2) * eps2 + state(3) * eps3 + state(4) * eps4;
 end

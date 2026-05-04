@@ -17,8 +17,10 @@ fho_steric4 = 0.028546;      % VT4 steric factor
 
 % начальные условия
 p0 = 101325;        % давление [Па] ! не влияет на решение, будет нужно только для обезразмеривания системы
-T0 = 1000;           % температура [К] (какая у нас температура?)
-Tv0 = 300;    % колебательная температура [К] для двухтемпературной модели (lt и sts)
+T0 = 800;           % температура [К] (какая у нас температура?)
+%Tv0 = 300;    % колебательная температура [К] для двухтемпературной модели (lt и sts)
+T13_0 = 500;   % температура [К] для трехтемпературной модели (sts)
+T24_0 = 300;   % температура [К] для трехтемпературной модели (sts)
 
 % конец интегрирования [с]
 t_fin = 1;
@@ -80,18 +82,25 @@ AD.fho_gamma_vv34d = 1.0;
 AD.fho_steric_vv_34_4d = 1.0;
 AD.sw_vv34d_model = 'hard';     % 'hard' (old STS) or 'easy' (A34d closure)
 AD.sw_vv34_4d_model = 'hard';   % 'hard' (old pair-resolved) or 'easy' (B34_4d closure)
+AD.n_steps_vv_easy = 1000;      % lower = faster easy mode; increase for accuracy checks
+AD.use_vv34 = true;             % set false to temporarily remove VV^s_{3-4}
+AD.use_vv34d = true;            % set false to temporarily remove VV^d_{3-4}
+AD.use_vv32d = true;            % set false to temporarily remove VV^d_{3-2}
+AD.use_vv34_4d = true;          % set false to temporarily remove VV^d_{3-4,4}
 
 % интервал интегрирования в безразмерном виде
 tspan = [0, t_fin]./tau;
 
 % входной массив начальных условий в безразмерном виде (двухтемпературная модель)
-Y0 = [1; Tv0 / T0];
-Y0_3t = [1; Tv0 / T0; Tv0 / T0];
+%Y0 = [1; Tv0 / T0]; % двухтемпературная модель (lt и sts)
+Y0 = [1; T13_0 / T0]; % трехтемпературная модель (sts)
+%Y0_3t = [1; Tv0 / T0; Tv0 / T0]; % двухтемпературная модель (lt и sts)
+Y0_3t = [1; T13_0 / T0; T24_0 / T0]; % трехтемпературная модель (sts)
 
 %% решение системы для четырёх моделей времени релаксации
 % Wang-Springer, LT, гибридный 2хтемпературный, гибридный 3хтемпературный
 run_cases = struct( ...
-    'name',   {'Wang-Springer', 'Landau-Teller (FHO)', 'гибридный 2хтемпературный', 'гибридный 3хтемпературный'}, ...
+    'name',   {'Wang-Springer', 'Landau-Teller (FHO)', 'Hybrid 2T', 'Hybrid 3T'}, ...
     'rp',     {'rpart_mt_lt',   'rpart_mt_lt',         'rpart_mt_sts', 'rpart_mt_3t_sts'}, ...
     'sw_rt',  {'vt_rel_time_wang', 'fho',              'fho', 'fho'}, ...
     'dim',    {2,               2,                     2,     3} ...
@@ -176,7 +185,14 @@ set(gca, 'XScale', 'log');
 xlabel('t [sec]');
 ylabel('Temperature [K]');
 legend(legend_entries, 'Location', 'best');
-title(['T_0 = ' num2str(T0) ' K, T_{v0} = ' num2str(Tv0) ' K']);
+if exist('T13_0', 'var') && exist('T24_0', 'var')
+    title(['T_0 = ' num2str(T0) ' K, T_{13,0} = ' num2str(T13_0) ...
+           ' K, T_{24,0} = ' num2str(T24_0) ' K']);
+elseif exist('Tv0', 'var')
+    title(['T_0 = ' num2str(T0) ' K, T_{v0} = ' num2str(Tv0) ' K']);
+else
+    title(['T_0 = ' num2str(T0) ' K']);
+end
 grid on;
 
 %% ══════════════════════════════════════════════════════════════
