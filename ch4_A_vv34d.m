@@ -37,7 +37,6 @@ if den <= 0 || ~isfinite(den)
 end
 
 cache_f = containers.Map('KeyType', 'char', 'ValueType', 'double');
-cache_r = containers.Map('KeyType', 'char', 'ValueType', 'double');
 
 steric = AD.fho_steric_vv_34d;
 alpha = AD.fho_alpha;
@@ -67,16 +66,17 @@ for i3 = 0:i3_max
 
         kr = 0;
         if i3 <= i3_max - 1 && i4 >= 2
-            keyr = sprintf('%d_%d', i3, i4);
-            if isKey(cache_r, keyr)
-                kr = cache_r(keyr);
+            si_rev = [0, 0, i3 + 1, i4 - 2];
+            sf_rev = [0, 0, i3, i4];
+            keyr = sprintf('%d_%d', si_rev(3), si_rev(4));
+            if isKey(cache_f, keyr)
+                kf_rev = cache_f(keyr);
             else
-                si = [0, 0, i3, i4];
-                sf = [0, 0, i3 + 1, i4 - 2];
-                kr = rates_fho_vv(T, si, sf, sk0, sk0, steric, alpha, e_m, ...
+                kf_rev = rates_fho_vv(T, si_rev, sf_rev, sk0, sk0, steric, alpha, e_m, ...
                     'n_steps', n_steps, 'gamma', gamma);
-                cache_r(keyr) = kr;
+                cache_f(keyr) = kf_rev;
             end
+            kr = ch4_state_backward(kf_rev, si_rev, sf_rev, T, AD);
         end
 
         acc = acc + w * (kf - kr);
@@ -88,4 +88,17 @@ end
 
 function sw = stat_w_methane(level)
 sw = 0.5 * (level + 1) * (level + 2);
+end
+
+function kb = ch4_state_backward(kf, state_i, state_f, T, AD)
+s_i = stat_w_methane(state_i(3)) * stat_w_methane(state_i(4));
+s_f = stat_w_methane(state_f(3)) * stat_w_methane(state_f(4));
+de = ch4_state_energy(state_f, AD) - ch4_state_energy(state_i, AD);
+kb = kf * (s_i / s_f) * exp(de / (AD.k * T));
+end
+
+function e = ch4_state_energy(state, AD)
+eps3 = AD.e0010 - AD.e0000;
+eps4 = AD.e0001 - AD.e0000;
+e = state(3) * eps3 + state(4) * eps4;
 end
