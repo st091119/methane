@@ -7,7 +7,7 @@ function test_relaxation_terms(varargin)
 % Run a fast smoke check on a truncated state space:
 %   test_relaxation_terms('quick')
 %
-% The source assembly below mirrors the VT2, VT4, and VV34d blocks in
+% The source assembly below mirrors the VT2, VT4, VV34d, and VV32d blocks in
 % rpart_mt_sts.m and rpart_mt_3t_sts.m. It intentionally prints only the
 % general state-specific moments; reduced/regression formulas are not used.
 
@@ -32,8 +32,10 @@ end
 
 fprintf('T0 = %.6g K, p0 = %.6g Pa, n0 = %.6e m^-3, tau = %.6e s\n', ...
     AD.T0, AD.p0, AD.n0, AD.tau);
-fprintf('FHO params: alpha = %.6e m^-1, e_m = %.6e K, steric2 = %.6g, steric4 = %.6g, steric_vv_34d = %.6g\n', ...
-    AD.fho_alpha, AD.fho_e_m, AD.fho_steric2, AD.fho_steric4, AD.fho_steric_vv_34d);
+fprintf(['FHO params: alpha = %.6e m^-1, e_m = %.6e K, steric2 = %.6g, steric4 = %.6g, ' ...
+    'steric_vv_34d = %.6g, steric_vv_32d = %.6g\n'], ...
+    AD.fho_alpha, AD.fho_e_m, AD.fho_steric2, AD.fho_steric4, AD.fho_steric_vv_34d, ...
+    AD.fho_steric_vv_32d);
 fprintf('Rate quadrature steps: VT = %d, VV = %d\n\n', n_steps_vt, n_steps_vv);
 
 n_report = 1.0e20;
@@ -66,6 +68,7 @@ test_cases_2t = [
 
 eps = mode_energies(AD);
 expected_ratio = -2 * eps.eps4 / eps.eps3;
+expected_ratio_32d = -2 * eps.eps2 / eps.eps3;
 
 fprintf('%s\n', repmat('=', 1, 128));
 fprintf('3T MODEL: selected general nondimensional moments\n');
@@ -89,7 +92,7 @@ for icase = 1:size(test_cases_3t, 1)
         terms.VT4.R24, terms.VT4.R13, ...
         terms.VV34d.R13, terms.VV34d.R24, ratio_err);
 
-    assert_selected_terms(terms, expected_ratio, sprintf('3T case %d', icase));
+    assert_selected_terms(terms, expected_ratio, expected_ratio_32d, sprintf('3T case %d', icase));
 end
 
 fprintf('\n%s\n', repmat('=', 1, 128));
@@ -115,11 +118,12 @@ for icase = 1:size(test_cases_2t, 1)
         terms.VT4.Rvibr, vt4_off, ...
         terms.VV34d.Rvibr, terms.VV34d.R3, terms.VV34d.R4, ratio_err);
 
-    assert_selected_terms(terms, expected_ratio, sprintf('2T case %d', icase));
+    assert_selected_terms(terms, expected_ratio, expected_ratio_32d, sprintf('2T case %d', icase));
 end
 
 fprintf('%s\n', repmat('=', 1, 128));
 fprintf('Expected VV34d ratio R4/R3 = R24/R13 = %.12e\n', expected_ratio);
+fprintf('Expected VV32d ratio R2/R3 = R24/R13 = %.12e\n', expected_ratio_32d);
 fprintf('All selected relaxation-term checks passed.\n');
 
 end
@@ -141,6 +145,8 @@ AD.fho_steric_vv_34s = 1.0;
 AD.fho_steric_vv_34d = 0.24;
 AD.fho_gamma_vv34d = 1.0;
 AD.fho_steric_vv_34_4d = 1.0;
+AD.fho_steric_vv_32d = 0.0025;
+AD.fho_gamma_vv32d = 0.5;
 
 AD = ch4_relax_topology(AD);
 end
@@ -162,7 +168,7 @@ AD.stw = AD.stw(mask);
 AD.lch4 = limits;
 AD.klop = nnz(mask);
 
-remove_fields = {'indj_vt2', 'indl_vt4', 'indvv34', 'indvv34d'};
+remove_fields = {'indj_vt2', 'indl_vt4', 'indvv34', 'indvv34d', 'indvv32d'};
 for ifield = 1:numel(remove_fields)
     if isfield(AD, remove_fields{ifield})
         AD = rmfield(AD, remove_fields{ifield});
@@ -216,6 +222,7 @@ n_scale = AD.n0 * AD.tau;
 sources.VT2 = vt_source(T, x, AD, AD.indj_vt2, 2, AD.fho_steric2, n_scale, n_steps_vt);
 sources.VT4 = vt_source(T, x, AD, AD.indl_vt4, 4, AD.fho_steric4, n_scale, n_steps_vt);
 sources.VV34d = vv34d_source(T, x, AD, n_scale, n_steps_vv);
+sources.VV32d = vv32d_source(T, x, AD, n_scale, n_steps_vv);
 end
 
 function R = vt_source(T, x, AD, index_next, mode, steric, n_scale, n_steps)
@@ -257,12 +264,34 @@ for ii = 1:numel(src)
 end
 end
 
+function R = vv32d_source(T, x, AD, n_scale, n_steps)
+N = numel(AD.e1234);
+R = zeros(N, 1);
+src = find(~isnan(AD.indvv32d));
+sk0 = [0, 0, 0, 0];
+
+for ii = 1:numel(src)
+    r = src(ii);
+    dst = AD.indvv32d(r);
+    si = AD.inds(r, :);
+    sf = AD.inds(dst, :);
+
+    kf = cached_rate_vv32d(T, si, sf, sk0, AD.fho_steric_vv_32d, ...
+        AD.fho_alpha, AD.fho_e_m, AD.fho_gamma_vv32d, n_steps) * n_scale;
+    kr = detailed_balance_state(kf, r, dst, T, AD);
+
+    R(r) = R(r) + x(dst) * kr - x(r) * kf;
+    R(dst) = R(dst) + x(r) * kf - x(dst) * kr;
+end
+end
+
 function terms = summarize_terms(sources, AD)
 [W1, W2, W3, W4, Wvibr] = energy_weights(AD);
 
 terms.VT2 = summarize_one_source(sources.VT2, W1, W2, W3, W4, Wvibr);
 terms.VT4 = summarize_one_source(sources.VT4, W1, W2, W3, W4, Wvibr);
 terms.VV34d = summarize_one_source(sources.VV34d, W1, W2, W3, W4, Wvibr);
+terms.VV32d = summarize_one_source(sources.VV32d, W1, W2, W3, W4, Wvibr);
 end
 
 function one = summarize_one_source(R, W1, W2, W3, W4, Wvibr)
@@ -336,11 +365,29 @@ else
 end
 end
 
+function k = cached_rate_vv32d(T, si, sf, sk0, steric, alpha, e_m, gamma, n_steps)
+persistent cache
+if isempty(cache)
+    cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
+end
+
+key = sprintf('VV32d_%.12g_%d_%d_%.12g_%.12g_%.12g_%.12g_%d', ...
+    T, si(2), si(3), steric, alpha, e_m, gamma, n_steps);
+
+if isKey(cache, key)
+    k = cache(key);
+else
+    k = rates_fho_vv(T, si, sf, sk0, sk0, steric, alpha, e_m, ...
+        'n_steps', n_steps, 'gamma', gamma);
+    cache(key) = k;
+end
+end
+
 function kb = detailed_balance_state(kf, i, f, T, AD)
 kb = kf * (AD.stw(i) / AD.stw(f)) * exp((AD.e1234(f) - AD.e1234(i)) / (AD.k * T));
 end
 
-function assert_selected_terms(terms, expected_ratio, label)
+function assert_selected_terms(terms, expected_ratio, expected_ratio_32d, label)
 zero_tol = 1e-9;
 ratio_tol = 1e-8;
 balance_tol = 1e-10;
@@ -349,6 +396,7 @@ tiny = realmin;
 assert(isfinite_source(terms.VT2), '%s VT2 contains a non-finite value.', label);
 assert(isfinite_source(terms.VT4), '%s VT4 contains a non-finite value.', label);
 assert(isfinite_source(terms.VV34d), '%s VV34d contains a non-finite value.', label);
+assert(isfinite_source(terms.VV32d), '%s VV32d contains a non-finite value.', label);
 
 assert(abs(terms.VT2.R13) <= zero_tol * max(abs(terms.VT2.R24), 1), ...
     '%s VT2 should not contribute to R13.', label);
@@ -356,6 +404,8 @@ assert(abs(terms.VT4.R13) <= zero_tol * max(abs(terms.VT4.R24), 1), ...
     '%s VT4 should not contribute to R13.', label);
 assert(max(abs([terms.VV34d.R1, terms.VV34d.R2])) <= zero_tol * max(abs(terms.VV34d.R3) + abs(terms.VV34d.R4), 1), ...
     '%s VV34d should not contribute to modes 1 or 2.', label);
+assert(max(abs([terms.VV32d.R1, terms.VV32d.R4])) <= zero_tol * max(abs(terms.VV32d.R2) + abs(terms.VV32d.R3), 1), ...
+    '%s VV32d should not contribute to modes 1 or 4.', label);
 
 assert(abs(terms.VT2.population_balance) <= balance_tol * max(norm_source(terms.VT2), 1), ...
     '%s VT2 does not conserve population.', label);
@@ -363,6 +413,8 @@ assert(abs(terms.VT4.population_balance) <= balance_tol * max(norm_source(terms.
     '%s VT4 does not conserve population.', label);
 assert(abs(terms.VV34d.population_balance) <= balance_tol * max(norm_source(terms.VV34d), 1), ...
     '%s VV34d does not conserve population.', label);
+assert(abs(terms.VV32d.population_balance) <= balance_tol * max(norm_source(terms.VV32d), 1), ...
+    '%s VV32d does not conserve population.', label);
 
 if abs(terms.VV34d.R13) > tiny
     ratio_3t = terms.VV34d.R24 / terms.VV34d.R13;
@@ -374,6 +426,16 @@ if abs(terms.VV34d.R3) > tiny
     assert(relative_error(ratio_2t, expected_ratio) <= ratio_tol, ...
         '%s VV34d R4/R3 ratio is inconsistent.', label);
 end
+if abs(terms.VV32d.R13) > tiny
+    ratio_3t_32 = terms.VV32d.R24 / terms.VV32d.R13;
+    assert(relative_error(ratio_3t_32, expected_ratio_32d) <= ratio_tol, ...
+        '%s VV32d R24/R13 ratio is inconsistent.', label);
+end
+if abs(terms.VV32d.R3) > tiny
+    ratio_2t_32 = terms.VV32d.R2 / terms.VV32d.R3;
+    assert(relative_error(ratio_2t_32, expected_ratio_32d) <= ratio_tol, ...
+        '%s VV32d R2/R3 ratio is inconsistent.', label);
+end
 
 assert(abs(terms.VT2.Rvibr - terms.VT2.Rvibr_modes) <= zero_tol * max(abs(terms.VT2.Rvibr), 1), ...
     '%s VT2 modal sum does not match vibrational moment.', label);
@@ -381,6 +443,8 @@ assert(abs(terms.VT4.Rvibr - terms.VT4.Rvibr_modes) <= zero_tol * max(abs(terms.
     '%s VT4 modal sum does not match vibrational moment.', label);
 assert(abs(terms.VV34d.Rvibr - terms.VV34d.Rvibr_modes) <= zero_tol * max(abs(terms.VV34d.Rvibr), 1), ...
     '%s VV34d modal sum does not match vibrational moment.', label);
+assert(abs(terms.VV32d.Rvibr - terms.VV32d.Rvibr_modes) <= zero_tol * max(abs(terms.VV32d.Rvibr), 1), ...
+    '%s VV32d modal sum does not match vibrational moment.', label);
 end
 
 function tf = isfinite_source(one)

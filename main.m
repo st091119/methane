@@ -71,12 +71,15 @@ AD.fho_alpha   = fho_alpha;
 AD.fho_e_m     = fho_e_m;
 AD.fho_steric2 = fho_steric2;
 AD.fho_steric4 = fho_steric4;
-% для rpart_mt_sts (VV34): при необходимости задайте явно
+% для rpart_mt_sts (VV): при необходимости задайте явно
 AD.fho_steric_vv_34s = 1.0;
 AD.fho_steric_vv_34d = 0.24;
-AD.fho_steric_vv_32d = 0.0025; % NEW PROCESS
+AD.fho_steric_vv_32d = 0.0025;  % VV^d_{3-2} (nu3 -> 2 nu2), partner unchanged
+AD.fho_gamma_vv32d = 0.5;       % как в fho_model/test_fho.m, реакция 32d_vv
 AD.fho_gamma_vv34d = 1.0;
 AD.fho_steric_vv_34_4d = 1.0;
+AD.sw_vv34d_model = 'hard';     % 'hard' (old STS) or 'easy' (A34d closure)
+AD.sw_vv34_4d_model = 'hard';   % 'hard' (old pair-resolved) or 'easy' (B34_4d closure)
 
 % интервал интегрирования в безразмерном виде
 tspan = [0, t_fin]./tau;
@@ -86,9 +89,9 @@ Y0 = [1; Tv0 / T0];
 Y0_3t = [1; Tv0 / T0; Tv0 / T0];
 
 %% решение системы для четырёх моделей времени релаксации
-% LT + Wang-Springer, LT + FHO, STS, трехтемпературная STS
+% Wang-Springer, LT, гибридный 2хтемпературный, гибридный 3хтемпературный
 run_cases = struct( ...
-    'name',   {'Wang-Springer', 'Landau-Teller (FHO)', 'STS', 'трехтемпературная модель'}, ...
+    'name',   {'Wang-Springer', 'Landau-Teller (FHO)', 'гибридный 2хтемпературный', 'гибридный 3хтемпературный'}, ...
     'rp',     {'rpart_mt_lt',   'rpart_mt_lt',         'rpart_mt_sts', 'rpart_mt_3t_sts'}, ...
     'sw_rt',  {'vt_rel_time_wang', 'fho',              'fho', 'fho'}, ...
     'dim',    {2,               2,                     2,     3} ...

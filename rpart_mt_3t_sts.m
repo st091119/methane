@@ -50,6 +50,18 @@ end
 if ~isfield(AD, 'fho_steric_vv_34_4d')
     AD.fho_steric_vv_34_4d = 1.0;
 end
+if ~isfield(AD, 'fho_steric_vv_32d')
+    AD.fho_steric_vv_32d = 0.0025;
+end
+if ~isfield(AD, 'fho_gamma_vv32d')
+    AD.fho_gamma_vv32d = 0.5;
+end
+if ~isfield(AD, 'sw_vv34d_model')
+    AD.sw_vv34d_model = 'hard'; % 'hard' | 'easy' (legacy aliases: 'state' | 'macro')
+end
+if ~isfield(AD, 'sw_vv34_4d_model')
+    AD.sw_vv34_4d_model = 'hard'; % 'hard' | 'easy' (legacy aliases: 'state' | 'macro')
+end
 
 n_scale = AD.n0 * AD.tau;
 sk0 = [0, 0, 0, 0];
@@ -112,29 +124,73 @@ for ii = 1:numel(src)
     RVV(dst) = RVV(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
 
+vv34d_is_easy = strcmpi(AD.sw_vv34d_model, 'easy') || strcmpi(AD.sw_vv34d_model, 'macro');
 RVV34d = zeros(N, 1);
-src = find(~isnan(AD.indvv34d));
-kvv34d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
+R13_vv34d = 0;
+R24_vv34d = 0;
+if vv34d_is_easy
+    n_steps_vv34d = 6000;
+    A34d = ch4_A_vv34d(temp, t13, t24, AD, n_steps_vv34d);
+    mult_A34d = AD.n0 * A34d * n_scale / kT0;
+    R13_vv34d = -mult_A34d * eps3;
+    R24_vv34d = 2 * mult_A34d * eps4;
+else
+    src = find(~isnan(AD.indvv34d));
+    kvv34d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
+    for ii = 1:numel(src)
+        r = src(ii);
+        dst = AD.indvv34d(r);
+        si = AD.inds(r, :);
+        sf = AD.inds(dst, :);
+        key = sprintf('%d_%d', si(3), si(4));
+        if isKey(kvv34d_cache, key)
+            kv = kvv34d_cache(key);
+        else
+            kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_34d, AD.fho_alpha, AD.fho_e_m, ...
+                'n_steps', 6000, 'gamma', AD.fho_gamma_vv34d);
+            kvv34d_cache(key) = kv;
+        end
+        kf = kv * n_scale;
+        kr = k_vt_bwd(kf, r, dst, temp, AD);
+        RVV34d(r) = RVV34d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
+        RVV34d(dst) = RVV34d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
+    end
+end
+
+RVV32d = zeros(N, 1);
+src = find(~isnan(AD.indvv32d));
+kvv32d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
 for ii = 1:numel(src)
     r = src(ii);
-    dst = AD.indvv34d(r);
+    dst = AD.indvv32d(r);
     si = AD.inds(r, :);
     sf = AD.inds(dst, :);
-    key = sprintf('%d_%d', si(3), si(4));
-    if isKey(kvv34d_cache, key)
-        kv = kvv34d_cache(key);
+    key = sprintf('%d_%d', si(2), si(3));
+    if isKey(kvv32d_cache, key)
+        kv = kvv32d_cache(key);
     else
-        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_34d, AD.fho_alpha, AD.fho_e_m, ...
-            'n_steps', 6000, 'gamma', AD.fho_gamma_vv34d);
-        kvv34d_cache(key) = kv;
+        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_32d, AD.fho_alpha, AD.fho_e_m, ...
+            'n_steps', 6000, 'gamma', AD.fho_gamma_vv32d);
+        kvv32d_cache(key) = kv;
     end
     kf = kv * n_scale;
     kr = k_vt_bwd(kf, r, dst, temp, AD);
-    RVV34d(r) = RVV34d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
-    RVV34d(dst) = RVV34d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
+    RVV32d(r) = RVV32d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
+    RVV32d(dst) = RVV32d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
 
-[RVV34_4d, RVV34_4d_partner_E24] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
+vv34_4d_is_easy = strcmpi(AD.sw_vv34_4d_model, 'easy') || strcmpi(AD.sw_vv34_4d_model, 'macro');
+R13_vv34_4d = 0;
+R24_vv34_4d = 0;
+if vv34_4d_is_easy
+    n_steps_vv34_4d = 6000;
+    B34 = ch4_B_vv34_4d(temp, t13, t24, AD, n_steps_vv34_4d);
+    mult_B = AD.n0 * B34 * n_scale / kT0;
+    R13_vv34_4d = -mult_B * eps3;
+    R24_vv34_4d = 2 * mult_B * eps4;
+else
+    [RVV34_4d, RVV34_4d_partner_E24] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
+end
 
 % Веса инвариантов (как в формуле: i2*e0100+i4*e0001 и аналогично для 1,3).
 W13 = E13 / kT0;
@@ -142,16 +198,26 @@ W24 = E24 / kT0;
 
 % Явное разложение релаксационных членов по каналам.
 R13_vv34 = sum(W13 .* RVV);
-R13_vv34d = sum(W13 .* RVV34d);
-R13_vv34_4d = sum(W13 .* RVV34_4d);
-R13 = R13_vv34 + R13_vv34d + R13_vv34_4d;
+if ~vv34d_is_easy
+    R13_vv34d = sum(W13 .* RVV34d);
+end
+R13_vv32d = sum(W13 .* RVV32d);
+if ~vv34_4d_is_easy
+    R13_vv34_4d = sum(W13 .* RVV34_4d);
+end
+R13 = R13_vv34 + R13_vv34d + R13_vv32d + R13_vv34_4d;
 
 R24_vt2 = sum(W24 .* RVT2);
 R24_vt4 = sum(W24 .* RVT4);
 R24_vv34 = sum(W24 .* RVV);
-R24_vv34d = sum(W24 .* RVV34d);
-R24_vv34_4d = sum(W24 .* RVV34_4d) + RVV34_4d_partner_E24 / kT0;
-R24 = R24_vt2 + R24_vt4 + R24_vv34 + R24_vv34d + R24_vv34_4d;
+if ~vv34d_is_easy
+    R24_vv34d = sum(W24 .* RVV34d);
+end
+R24_vv32d = sum(W24 .* RVV32d);
+if ~vv34_4d_is_easy
+    R24_vv34_4d = sum(W24 .* RVV34_4d) + RVV34_4d_partner_E24 / kT0;
+end
+R24 = R24_vt2 + R24_vt4 + R24_vv34 + R24_vv34d + R24_vv32d + R24_vv34_4d;
 
 % Аналитические производные средних энергий (без конечных разностей).
 E13m = sum(nco2i_b .* E13);

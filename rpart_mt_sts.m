@@ -1,7 +1,7 @@
 function dy = rpart_mt_sts(~, y, AD)
 
 %   y = [T_b; Tv_b], где T_b = T/T0, Tv_b = Tv/T0.
-%   Процессы: VT2, VT4, VV34s, VV34d, VV34_4d.
+%   Процессы: VT2, VT4, VV34s, VV34d, VV32d (VV^d_{3-2}), VV34_4d.
 
 if ~exist('rates_fho_vt', 'file')
     addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
@@ -32,13 +32,25 @@ if ~isfield(AD, 'fho_steric_vv_34s')
     AD.fho_steric_vv_34s = 1.0;
 end
 if ~isfield(AD, 'fho_steric_vv_34d')
-    AD.fho_steric_vv_34d = 0.24;
+    AD.fho_steric_vv_34d = 0.06;
 end
 if ~isfield(AD, 'fho_gamma_vv34d')
     AD.fho_gamma_vv34d = 1.0;
 end
 if ~isfield(AD, 'fho_steric_vv_34_4d')
     AD.fho_steric_vv_34_4d = 1.0;
+end
+if ~isfield(AD, 'fho_steric_vv_32d')
+    AD.fho_steric_vv_32d = 0.0025;
+end
+if ~isfield(AD, 'fho_gamma_vv32d')
+    AD.fho_gamma_vv32d = 0.5;
+end
+if ~isfield(AD, 'sw_vv34d_model')
+    AD.sw_vv34d_model = 'hard'; % 'hard' | 'easy' (legacy aliases: 'state' | 'macro')
+end
+if ~isfield(AD, 'sw_vv34_4d_model')
+    AD.sw_vv34_4d_model = 'hard'; % 'hard' | 'easy' (legacy aliases: 'state' | 'macro')
 end
 
 sk0 = [0, 0, 0, 0];
@@ -103,7 +115,6 @@ RVV = zeros(qnco2, 1);
 indvv34 = AD.indvv34;
 vv_src = find(~isnan(indvv34));
 kvv_up = zeros(N, 1);
-% Кэш FHO по (K,L) донора: k(I,J,K,L) слабо зависит от I,J относительно полного перебора уровней.
 kvv_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
 for ii = 1:numel(vv_src)
     r = vv_src(ii);
@@ -134,42 +145,93 @@ end
 RVIBR = RVIBR + sum((E / kT0) .* RVV);
 
 %% --- VV34d: CH4(i) + CH4 <-> CH4(i3-1,i4+2) + CH4 ---
-% Обратный канал i3+1,i4-2 также учитывается через k_r (detailed balance).
-RVV34d = zeros(qnco2, 1);
-indvv34d = AD.indvv34d;
-vv34d_src = find(~isnan(indvv34d));
-kvv34d_up = zeros(N, 1);
-kvv34d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
-for ii = 1:numel(vv34d_src)
-    r = vv34d_src(ii);
-    dst = indvv34d(r);
+vv34d_is_easy = strcmpi(AD.sw_vv34d_model, 'easy') || strcmpi(AD.sw_vv34d_model, 'macro');
+if vv34d_is_easy
+    n_steps_vv34d = 6000;
+    A34d = ch4_A_vv34d(temp, tv, tv, AD, n_steps_vv34d);
+    eps3_vv = AD.e0010 - AD.e0000;
+    eps4_vv = AD.e0001 - AD.e0000;
+    RVIBR = RVIBR + (AD.n0 * A34d * n_scale / kT0) * (2 * eps4_vv - eps3_vv);
+else
+    % State-resolved legacy branch.
+    RVV34d = zeros(qnco2, 1);
+    indvv34d = AD.indvv34d;
+    vv34d_src = find(~isnan(indvv34d));
+    kvv34d_up = zeros(N, 1);
+    kvv34d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
+    for ii = 1:numel(vv34d_src)
+        r = vv34d_src(ii);
+        dst = indvv34d(r);
+        si = AD.inds(r, :);
+        sf = AD.inds(dst, :);
+        key = sprintf('%d_%d', si(3), si(4));
+        if isKey(kvv34d_cache, key)
+            kvv34d_up(r) = kvv34d_cache(key);
+        else
+            kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_34d, ...
+                AD.fho_alpha, AD.fho_e_m, 'n_steps', 6000, ...
+                'gamma', AD.fho_gamma_vv34d);
+            kvv34d_cache(key) = kv;
+            kvv34d_up(r) = kv;
+        end
+    end
+    kvv34d_up = kvv34d_up * n_scale;
+    for ii = 1:numel(vv34d_src)
+        r = vv34d_src(ii);
+        dst = indvv34d(r);
+        kf = kvv34d_up(r);
+        kr = k_vt_bwd(kf, r, dst, temp, AD);
+        RVV34d(r) = RVV34d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
+        RVV34d(dst) = RVV34d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
+    end
+    RVIBR = RVIBR + sum((E / kT0) .* RVV34d);
+end
+
+%% --- VV32d: CH4(i) + CH4 <-> CH4(i2+2,i3-1) + CH4, VV^d_{3-2} ---
+RVV32d = zeros(qnco2, 1);
+indvv32d = AD.indvv32d;
+vv32d_src = find(~isnan(indvv32d));
+kvv32d_up = zeros(N, 1);
+kvv32d_cache = containers.Map('KeyType', 'char', 'ValueType', 'double');
+for ii = 1:numel(vv32d_src)
+    r = vv32d_src(ii);
+    dst = indvv32d(r);
     si = AD.inds(r, :);
     sf = AD.inds(dst, :);
-    key = sprintf('%d_%d', si(3), si(4));
-    if isKey(kvv34d_cache, key)
-        kvv34d_up(r) = kvv34d_cache(key);
+    key = sprintf('%d_%d', si(2), si(3));
+    if isKey(kvv32d_cache, key)
+        kvv32d_up(r) = kvv32d_cache(key);
     else
-        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_34d, ...
+        kv = rates_fho_vv(temp, si, sf, sk0, sk0, AD.fho_steric_vv_32d, ...
             AD.fho_alpha, AD.fho_e_m, 'n_steps', 6000, ...
-            'gamma', AD.fho_gamma_vv34d);
-        kvv34d_cache(key) = kv;
-        kvv34d_up(r) = kv;
+            'gamma', AD.fho_gamma_vv32d);
+        kvv32d_cache(key) = kv;
+        kvv32d_up(r) = kv;
     end
 end
-kvv34d_up = kvv34d_up * n_scale;
-for ii = 1:numel(vv34d_src)
-    r = vv34d_src(ii);
-    dst = indvv34d(r);
-    kf = kvv34d_up(r);
+kvv32d_up = kvv32d_up * n_scale;
+for ii = 1:numel(vv32d_src)
+    r = vv32d_src(ii);
+    dst = indvv32d(r);
+    kf = kvv32d_up(r);
     kr = k_vt_bwd(kf, r, dst, temp, AD);
-    RVV34d(r) = RVV34d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
-    RVV34d(dst) = RVV34d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
+    RVV32d(r) = RVV32d(r) + nco2i_b(dst) * kr - nco2i_b(r) * kf;
+    RVV32d(dst) = RVV32d(dst) + nco2i_b(r) * kf - nco2i_b(dst) * kr;
 end
-RVIBR = RVIBR + sum((E / kT0) .* RVV34d);
+RVIBR = RVIBR + sum((E / kT0) .* RVV32d);
 
 %% --- VV34_4d: CH4(i)+CH4(k4) <-> CH4(i3-1,i4+1)+CH4(k4+1) ---
-[RVV34_4d, RVV34_4d_partner_E] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
-RVIBR = RVIBR + sum((E / kT0) .* RVV34_4d) + RVV34_4d_partner_E / kT0;
+vv34_4d_is_easy = strcmpi(AD.sw_vv34_4d_model, 'easy') || strcmpi(AD.sw_vv34_4d_model, 'macro');
+if vv34_4d_is_easy
+    n_steps_vv34_4d = 6000;
+    B34 = ch4_B_vv34_4d(temp, tv, tv, AD, n_steps_vv34_4d);
+    eps3_vv = AD.e0010 - AD.e0000;
+    eps4_vv = AD.e0001 - AD.e0000;
+    RVIBR = RVIBR + (AD.n0 * B34 * n_scale / kT0) * (2 * eps4_vv - eps3_vv);
+else
+    [RVV34_4d, RVV34_4d_partner_E] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
+    RVIBR = RVIBR + sum((E / kT0) .* RVV34_4d) + RVV34_4d_partner_E / kT0;
+end
 
 %% матрица A для двухтемпературной постановки
 e_sum_e_sum = sum(w .* (E ./ (AD.k * tv)) .* exp(fac))^2;

@@ -1,5 +1,5 @@
 function [R_donor, R_partner_E] = ch4_vv34_4d_source(T, x, AD, n_scale, n_steps)
-%CH4_VV34_4D_SOURCE Source for CH4(i)+CH4(k4)->CH4(i3-1,i4+1)+CH4(k4+1).
+%CH4_VV34_4D_SOURCE State-resolved pair source for CH4(i)+CH4(k4)->CH4(i3-1,i4+1)+CH4(k4+1).
 %   R_donor is the state source for the donor molecule only. R_partner_E is
 %   the matching vibrational-energy source of the partner molecule.
 
