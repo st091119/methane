@@ -1,3 +1,4 @@
+
 function results = main_test(varargin)
 %MAIN_TEST Fast cumulative check of simplified CH4 2T/3T relaxation models.
 %
@@ -92,7 +93,7 @@ function cfg = parse_options(varargin)
 cfg = struct();
 cfg.mode_name = 'fast';
 cfg.fast = true;
-cfg.T0 = 1000;
+cfg.T0 = 800;
 cfg.Tv0 = 300;
 cfg.p0 = 101325;
 cfg.t_fin = 1.0e-5;
