@@ -80,6 +80,9 @@ steric_vv_34s = 1.0;
 steric_vv_34d = 0.06;
 steric_vv_32d = 0.000625;
 steric_vv_34_4d = 1.0;
+steric_vv_32_2d = 1.0;
+steric_vv_34_2d = 1.0;
+steric_vv_32_4d = 1.0;
 steric_vv_44 = 0.419;
 steric_vv_44_deact = 0.437;
 steric_vv_24b = 0.99;
@@ -91,6 +94,9 @@ vv_reactions = {
     struct('key', '34d_vv',   'state_i', [0 0 1 0], 'state_f', [0 0 0 2], 'state_k', [0 0 0 0], 'state_kf', [0 0 0 0], 'steric_vv', steric_vv_34d,      'gamma', 1.0, 'params_name', 'params_vv34_d','formula', 'nu3 -> 2nu4',                   'note', 'cell 107 direct rate_vv');
     struct('key', '32d_vv',   'state_i', [0 0 1 0], 'state_f', [0 2 0 0], 'state_k', [0 0 0 0], 'state_kf', [0 0 0 0], 'steric_vv', steric_vv_32d,      'gamma', 0.5, 'params_name', 'params_vv32_d','formula', 'nu3 -> 2nu2',                   'note', 'cell 119 fitted');
     struct('key', '34_4d',    'state_i', [0 0 1 0], 'state_f', [0 0 0 1], 'state_k', [0 0 0 0], 'state_kf', [0 0 0 1], 'steric_vv', steric_vv_34_4d,    'gamma', 0.5, 'params_name', 'params',       'formula', 'nu3 -> nu4 + nu4_partner',      'note', 'cell 107 sharing channel');
+    struct('key', '32_2d',    'state_i', [0 0 1 0], 'state_f', [0 1 0 0], 'state_k', [0 0 0 0], 'state_kf', [0 1 0 0], 'steric_vv', steric_vv_32_2d,    'gamma', 0.5, 'params_name', 'params',       'formula', 'nu3 -> nu2 + nu2_partner',      'note', 'table channel 10');
+    struct('key', '34_2d',    'state_i', [0 0 1 0], 'state_f', [0 0 0 1], 'state_k', [0 0 0 0], 'state_kf', [0 1 0 0], 'steric_vv', steric_vv_34_2d,    'gamma', 0.5, 'params_name', 'params',       'formula', 'nu3 -> nu4 + nu2_partner',      'note', 'table channel 11');
+    struct('key', '32_4d',    'state_i', [0 0 1 0], 'state_f', [0 1 0 0], 'state_k', [0 0 0 0], 'state_kf', [0 0 0 1], 'steric_vv', steric_vv_32_4d,    'gamma', 0.5, 'params_name', 'params',       'formula', 'nu3 -> nu2 + nu4_partner',      'note', 'table channel 12');
     struct('key', '44_swap',  'state_i', [0 0 0 1], 'state_f', [0 0 0 0], 'state_k', [0 0 0 0], 'state_kf', [0 0 0 1], 'steric_vv', steric_vv_44,       'gamma', 0.5, 'params_name', 'params_vv44',  'formula', 'nu4 swap',                       'note', 'cell 111/113');
     struct('key', '44_deact', 'state_i', [0 0 0 2], 'state_f', [0 0 0 1], 'state_k', [0 0 0 0], 'state_kf', [0 0 0 1], 'steric_vv', steric_vv_44_deact, 'gamma', 0.5, 'params_name', 'params_vv44',  'formula', '2nu4 -> nu4 + nu4_partner',     'note', 'cell 111/113');
     struct('key', '24b',      'state_i', [0 1 0 0], 'state_f', [0 0 0 0], 'state_k', [0 0 0 0], 'state_kf', [0 0 0 1], 'steric_vv', steric_vv_24b,      'gamma', 0.5, 'params_name', 'params',       'formula', 'nu2 -> nu4_partner',            'note', 'cell 117');
@@ -116,7 +122,7 @@ end
 %% Direct VV rates for Python/MATLAB comparison
 T_vv_test = [300, 500, 1000, 1400];
 matlab_rate_keys = {'34s_vv', '34d_vv', '32d_vv', '34_4d', ...
-    '44_swap', '44_deact', '24b', '33_swap', '13_swap'};
+    '32_2d', '34_2d', '32_4d', '44_swap', '44_deact', '24b', '33_swap', '13_swap'};
 
 fprintf('\n%s\n', repmat('=', 1, 120));
 fprintf('Direct VV rate references for MATLAB (simplified)\n');
@@ -137,7 +143,8 @@ for ik = 1:numel(matlab_rate_keys)
 end
 
 %% Mode-3 relaxation references
-mode3_relaxation_keys = {'34s_vv', '34d_vv', '32d_vv', '34_4d'};
+mode3_relaxation_keys = {'34s_vv', '34d_vv', '32d_vv', '34_4d', ...
+    '32_2d', '34_2d', '32_4d'};
 
 fprintf('%s\n', repmat('=', 1, 120));
 fprintf('Mode-3 relaxation references used in p*tau checks\n');
@@ -164,6 +171,9 @@ fprintf('steric_vv_34s      = %.6f\n', steric_vv_34s);
 fprintf('steric_vv_34d      = %.6f\n', steric_vv_34d);
 fprintf('steric_vv_32d      = %.6f\n', steric_vv_32d);
 fprintf('steric_vv_34_4d    = %.6f\n', steric_vv_34_4d);
+fprintf('steric_vv_32_2d    = %.6f\n', steric_vv_32_2d);
+fprintf('steric_vv_34_2d    = %.6f\n', steric_vv_34_2d);
+fprintf('steric_vv_32_4d    = %.6f\n', steric_vv_32_4d);
 fprintf('steric_vv_44       = %.6f\n', steric_vv_44);
 fprintf('steric_vv_44_deact = %.6f\n', steric_vv_44_deact);
 fprintf('steric_vv_24b      = %.6f\n', steric_vv_24b);

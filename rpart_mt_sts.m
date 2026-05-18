@@ -1,7 +1,7 @@
 function dy = rpart_mt_sts(~, y, AD)
 
 %   y = [T_b; Tv_b], где T_b = T/T0, Tv_b = Tv/T0.
-%   Процессы: VT2, VT4, VV34s, VV34d, VV32d (VV^d_{3-2}), VV34_4d.
+%   Процессы: VT2, VT4, VV34s, VV34d, VV32d и pair-VV каналы.
 
 if ~exist('rates_fho_vt', 'file')
     addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
@@ -43,6 +43,15 @@ end
 if ~isfield(AD, 'fho_steric_vv_32d')
     AD.fho_steric_vv_32d = 0.0025;
 end
+if ~isfield(AD, 'fho_steric_vv_32_2d')
+    AD.fho_steric_vv_32_2d = 1.0;
+end
+if ~isfield(AD, 'fho_steric_vv_34_2d')
+    AD.fho_steric_vv_34_2d = 1.0;
+end
+if ~isfield(AD, 'fho_steric_vv_32_4d')
+    AD.fho_steric_vv_32_4d = 1.0;
+end
 if ~isfield(AD, 'fho_gamma_vv32d')
     AD.fho_gamma_vv32d = 0.5;
 end
@@ -66,6 +75,15 @@ if ~isfield(AD, 'use_vv32d')
 end
 if ~isfield(AD, 'use_vv34_4d')
     AD.use_vv34_4d = true;
+end
+if ~isfield(AD, 'use_vv32_2d')
+    AD.use_vv32_2d = true;
+end
+if ~isfield(AD, 'use_vv34_2d')
+    AD.use_vv34_2d = true;
+end
+if ~isfield(AD, 'use_vv32_4d')
+    AD.use_vv32_4d = true;
 end
 
 sk0 = [0, 0, 0, 0];
@@ -254,6 +272,23 @@ else
     [RVV34_4d, RVV34_4d_partner_E] = ch4_vv34_4d_source(temp, nco2i_b, AD, n_scale, 6000);
     RVIBR = RVIBR + sum((E / kT0) .* RVV34_4d) + RVV34_4d_partner_E / kT0;
 end
+end
+
+%% --- Intermolecular VVd: nu3 -> nu2/nu4 + partner nu2/nu4 ---
+if AD.use_vv32_2d
+    [RVV32_2d, RVV32_2d_partner_E] = ch4_vv_partner_source(temp, nco2i_b, AD, ...
+        n_scale, 6000, [0, 1, -1, 0], 2, AD.fho_steric_vv_32_2d, 0.5);
+    RVIBR = RVIBR + sum((E / kT0) .* RVV32_2d) + RVV32_2d_partner_E / kT0;
+end
+if AD.use_vv34_2d
+    [RVV34_2d, RVV34_2d_partner_E] = ch4_vv_partner_source(temp, nco2i_b, AD, ...
+        n_scale, 6000, [0, 0, -1, 1], 2, AD.fho_steric_vv_34_2d, 0.5);
+    RVIBR = RVIBR + sum((E / kT0) .* RVV34_2d) + RVV34_2d_partner_E / kT0;
+end
+if AD.use_vv32_4d
+    [RVV32_4d, RVV32_4d_partner_E] = ch4_vv_partner_source(temp, nco2i_b, AD, ...
+        n_scale, 6000, [0, 1, -1, 0], 4, AD.fho_steric_vv_32_4d, 0.5);
+    RVIBR = RVIBR + sum((E / kT0) .* RVV32_4d) + RVV32_4d_partner_E / kT0;
 end
 
 %% матрица A для двухтемпературной постановки

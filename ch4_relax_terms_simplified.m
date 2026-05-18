@@ -196,6 +196,15 @@ end
 if ~isfield(AD, 'fho_steric_vv_34_4d')
     AD.fho_steric_vv_34_4d = 1.0;
 end
+if ~isfield(AD, 'fho_steric_vv_32_2d')
+    AD.fho_steric_vv_32_2d = 1.0;
+end
+if ~isfield(AD, 'fho_steric_vv_34_2d')
+    AD.fho_steric_vv_34_2d = 1.0;
+end
+if ~isfield(AD, 'fho_steric_vv_32_4d')
+    AD.fho_steric_vv_32_4d = 1.0;
+end
 end
 
 function eps = mode_energies(AD)

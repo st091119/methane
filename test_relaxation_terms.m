@@ -147,6 +147,9 @@ AD.fho_gamma_vv34d = 1.0;
 AD.fho_steric_vv_34_4d = 1.0;
 AD.fho_steric_vv_32d = 0.0025;
 AD.fho_gamma_vv32d = 0.5;
+AD.fho_steric_vv_32_2d = 1.0;
+AD.fho_steric_vv_34_2d = 1.0;
+AD.fho_steric_vv_32_4d = 1.0;
 
 AD = ch4_relax_topology(AD);
 end

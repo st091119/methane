@@ -53,6 +53,15 @@ end
 if ~isfield(AD, 'fho_steric_vv_32d')
     AD.fho_steric_vv_32d = 0.0025;
 end
+if ~isfield(AD, 'fho_steric_vv_32_2d')
+    AD.fho_steric_vv_32_2d = 1.0;
+end
+if ~isfield(AD, 'fho_steric_vv_34_2d')
+    AD.fho_steric_vv_34_2d = 1.0;
+end
+if ~isfield(AD, 'fho_steric_vv_32_4d')
+    AD.fho_steric_vv_32_4d = 1.0;
+end
 if ~isfield(AD, 'fho_gamma_vv32d')
     AD.fho_gamma_vv32d = 0.5;
 end
@@ -76,6 +85,15 @@ if ~isfield(AD, 'use_vv32d')
 end
 if ~isfield(AD, 'use_vv34_4d')
     AD.use_vv34_4d = true;
+end
+if ~isfield(AD, 'use_vv32_2d')
+    AD.use_vv32_2d = true;
+end
+if ~isfield(AD, 'use_vv34_2d')
+    AD.use_vv34_2d = true;
+end
+if ~isfield(AD, 'use_vv32_4d')
+    AD.use_vv32_4d = true;
 end
 
 n_scale = AD.n0 * AD.tau;
@@ -217,6 +235,27 @@ else
 end
 end
 
+RVV32_2d = zeros(N, 1);
+RVV32_2d_partner_E24 = 0;
+if AD.use_vv32_2d
+    [RVV32_2d, RVV32_2d_partner_E24] = ch4_vv_partner_source(temp, nco2i_b, AD, ...
+        n_scale, 6000, [0, 1, -1, 0], 2, AD.fho_steric_vv_32_2d, 0.5);
+end
+
+RVV34_2d = zeros(N, 1);
+RVV34_2d_partner_E24 = 0;
+if AD.use_vv34_2d
+    [RVV34_2d, RVV34_2d_partner_E24] = ch4_vv_partner_source(temp, nco2i_b, AD, ...
+        n_scale, 6000, [0, 0, -1, 1], 2, AD.fho_steric_vv_34_2d, 0.5);
+end
+
+RVV32_4d = zeros(N, 1);
+RVV32_4d_partner_E24 = 0;
+if AD.use_vv32_4d
+    [RVV32_4d, RVV32_4d_partner_E24] = ch4_vv_partner_source(temp, nco2i_b, AD, ...
+        n_scale, 6000, [0, 1, -1, 0], 4, AD.fho_steric_vv_32_4d, 0.5);
+end
+
 % Веса инвариантов (как в формуле: i2*e0100+i4*e0001 и аналогично для 1,3).
 W13 = E13 / kT0;
 W24 = E24 / kT0;
@@ -230,7 +269,11 @@ R13_vv32d = sum(W13 .* RVV32d);
 if ~vv34_4d_is_easy
     R13_vv34_4d = sum(W13 .* RVV34_4d);
 end
-R13 = R13_vv34 + R13_vv34d + R13_vv32d + R13_vv34_4d;
+R13_vv32_2d = sum(W13 .* RVV32_2d);
+R13_vv34_2d = sum(W13 .* RVV34_2d);
+R13_vv32_4d = sum(W13 .* RVV32_4d);
+R13 = R13_vv34 + R13_vv34d + R13_vv32d + R13_vv34_4d + ...
+    R13_vv32_2d + R13_vv34_2d + R13_vv32_4d;
 
 R24_vt2 = sum(W24 .* RVT2);
 R24_vt4 = sum(W24 .* RVT4);
@@ -242,7 +285,11 @@ R24_vv32d = sum(W24 .* RVV32d);
 if ~vv34_4d_is_easy
     R24_vv34_4d = sum(W24 .* RVV34_4d) + RVV34_4d_partner_E24 / kT0;
 end
-R24 = R24_vt2 + R24_vt4 + R24_vv34 + R24_vv34d + R24_vv32d + R24_vv34_4d;
+R24_vv32_2d = sum(W24 .* RVV32_2d) + RVV32_2d_partner_E24 / kT0;
+R24_vv34_2d = sum(W24 .* RVV34_2d) + RVV34_2d_partner_E24 / kT0;
+R24_vv32_4d = sum(W24 .* RVV32_4d) + RVV32_4d_partner_E24 / kT0;
+R24 = R24_vt2 + R24_vt4 + R24_vv34 + R24_vv34d + R24_vv32d + R24_vv34_4d + ...
+    R24_vv32_2d + R24_vv34_2d + R24_vv32_4d;
 
 % Аналитические производные средних энергий (без конечных разностей).
 E13m = sum(nco2i_b .* E13);

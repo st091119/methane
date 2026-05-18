@@ -149,6 +149,9 @@ AD.fho_steric_vv_34s = 1.0;
 AD.fho_steric_vv_34d = 0.24;
 AD.fho_gamma_vv34d = 1.0;
 AD.fho_steric_vv_34_4d = 1.0;
+AD.fho_steric_vv_32_2d = 1.0;
+AD.fho_steric_vv_34_2d = 1.0;
+AD.fho_steric_vv_32_4d = 1.0;
 end
 
 function tau = mean_collision_time(n, T, AD)
