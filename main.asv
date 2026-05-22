@@ -204,24 +204,25 @@ grid on;
 %% ══════════════════════════════════════════════════════════════
 %  Сравнение Wang-Springer и FHO
 %  ══════════════════════════════════════════════════════════════
-T_comp = linspace(200, 1300, 80);
-ptau_comp_ws  = zeros(size(T_comp));
-ptau_comp_fho = zeros(size(T_comp));
-
-for iT = 1:length(T_comp)
-    Ti = T_comp(iT);
-    ptau_comp_ws(iT)  = vt_rel_time_wang(Ti);   % [Па*с]
-    res_i = relaxation_time_kinetic(Ti, fho_alpha, fho_e_m, fho_steric2, fho_steric4);
-    ptau_comp_fho(iT) = res_i.ptau_total * 101325; % [атм*с] -> [Па*с]
-end
-
-figure;
-semilogy(T_comp, ptau_comp_ws / 101325, 'b-', 'LineWidth', 2); hold on;
-semilogy(T_comp, ptau_comp_fho / 101325, 'k-.', 'LineWidth', 2);
-xlabel('T [K]');
-ylabel('p\tau [atm \cdot s]');
-legend('Wang-Springer', 'FHO');
-title('Сравнение времён VT релаксации CH4-CH4');
-grid on;
-
-
+% 
+% T_comp = linspace(200, 1300, 80);
+% ptau_comp_ws  = zeros(size(T_comp));
+% ptau_comp_fho = zeros(size(T_comp));
+% 
+% for iT = 1:length(T_comp)
+%     Ti = T_comp(iT);
+%     ptau_comp_ws(iT)  = vt_rel_time_wang(Ti);   % [Па*с]
+%     res_i = relaxation_time_kinetic(Ti, fho_alpha, fho_e_m, fho_steric2, fho_steric4);
+%     ptau_comp_fho(iT) = res_i.ptau_total * 101325; % [атм*с] -> [Па*с]
+% end
+% 
+% figure;
+% semilogy(T_comp, ptau_comp_ws / 101325, 'b-', 'LineWidth', 2); hold on;
+% semilogy(T_comp, ptau_comp_fho / 101325, 'k-.', 'LineWidth', 2);
+% xlabel('T [K]');
+% ylabel('p\tau [atm \cdot s]');
+% legend('Wang-Springer', 'FHO');
+% title('Сравнение времён VT релаксации CH4-CH4');
+% grid on;
+% 
+% 

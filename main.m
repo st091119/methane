@@ -17,10 +17,10 @@ fho_steric4 = 0.028546;      % VT4 steric factor
 
 % начальные условия
 p0 = 101325;        % давление [Па] ! не влияет на решение, будет нужно только для обезразмеривания системы
-T0 = 300;           % температура [К] (какая у нас температура?)
-%Tv0 = 300;    % колебательная температура [К] для двухтемпературной модели (lt и sts)
-T13_0 = 800;   % температура [К] для трехтемпературной модели (sts)
-T24_0 = 800;   % температура [К] для трехтемпературной модели (sts)
+T0 = 1000;          % поступательная температура [К]
+Tv0 = 300;          % колебательная температура [К] для двухтемпературной модели (lt и sts)
+T13_0 = 700;        % температура [К] для трехтемпературной модели (моды 1,3)
+T24_0 = 300;        % температура [К] для трехтемпературной модели (моды 2,4)
 
 % конец интегрирования [с]
 t_fin = 1;
@@ -87,7 +87,7 @@ AD.sw_vv34d_model = 'hard';     % 'hard' (old STS) or 'easy' (A34d closure)
 AD.sw_vv34_4d_model = 'hard';   % 'hard' (old pair-resolved) or 'easy' (B34_4d closure)
 AD.n_steps_vv_easy = 1000;      % lower = faster easy mode; increase for accuracy checks
 AD.use_vv34 = true;             % set false to temporarily remove VV^s_{3-4}
-AD.use_vv34d = false;            % set false to temporarily remove VV^d_{3-4}
+AD.use_vv34d = true;            % set false to temporarily remove VV^d_{3-4}
 AD.use_vv32d = true;            % set false to temporarily remove VV^d_{3-2}
 AD.use_vv34_4d = true;          % set false to temporarily remove VV^d_{3-4,4}
 AD.use_vv32_2d = true;          % set false to remove VV^d_{3-2,2}
@@ -98,9 +98,7 @@ AD.use_vv32_4d = true;          % set false to remove VV^d_{3-2,4}
 tspan = [0, t_fin]./tau;
 
 % входной массив начальных условий в безразмерном виде (двухтемпературная модель)
-%Y0 = [1; Tv0 / T0]; % двухтемпературная модель (lt и sts)
-Y0 = [1; T13_0 / T0]; % трехтемпературная модель (sts)
-%Y0_3t = [1; Tv0 / T0; Tv0 / T0]; % двухтемпературная модель (lt и sts)
+Y0 = [1; Tv0 / T0]; % двухтемпературная модель (lt и sts)
 Y0_3t = [1; T13_0 / T0; T24_0 / T0]; % трехтемпературная модель (sts)
 
 %% решение системы для четырёх моделей времени релаксации
@@ -204,24 +202,25 @@ grid on;
 %% ══════════════════════════════════════════════════════════════
 %  Сравнение Wang-Springer и FHO
 %  ══════════════════════════════════════════════════════════════
-T_comp = linspace(200, 1300, 80);
-ptau_comp_ws  = zeros(size(T_comp));
-ptau_comp_fho = zeros(size(T_comp));
-
-for iT = 1:length(T_comp)
-    Ti = T_comp(iT);
-    ptau_comp_ws(iT)  = vt_rel_time_wang(Ti);   % [Па*с]
-    res_i = relaxation_time_kinetic(Ti, fho_alpha, fho_e_m, fho_steric2, fho_steric4);
-    ptau_comp_fho(iT) = res_i.ptau_total * 101325; % [атм*с] -> [Па*с]
-end
-
-figure;
-semilogy(T_comp, ptau_comp_ws / 101325, 'b-', 'LineWidth', 2); hold on;
-semilogy(T_comp, ptau_comp_fho / 101325, 'k-.', 'LineWidth', 2);
-xlabel('T [K]');
-ylabel('p\tau [atm \cdot s]');
-legend('Wang-Springer', 'FHO');
-title('Сравнение времён VT релаксации CH4-CH4');
-grid on;
-
-
+% 
+% T_comp = linspace(200, 1300, 80);
+% ptau_comp_ws  = zeros(size(T_comp));
+% ptau_comp_fho = zeros(size(T_comp));
+% 
+% for iT = 1:length(T_comp)
+%     Ti = T_comp(iT);
+%     ptau_comp_ws(iT)  = vt_rel_time_wang(Ti);   % [Па*с]
+%     res_i = relaxation_time_kinetic(Ti, fho_alpha, fho_e_m, fho_steric2, fho_steric4);
+%     ptau_comp_fho(iT) = res_i.ptau_total * 101325; % [атм*с] -> [Па*с]
+% end
+% 
+% figure;
+% semilogy(T_comp, ptau_comp_ws / 101325, 'b-', 'LineWidth', 2); hold on;
+% semilogy(T_comp, ptau_comp_fho / 101325, 'k-.', 'LineWidth', 2);
+% xlabel('T [K]');
+% ylabel('p\tau [atm \cdot s]');
+% legend('Wang-Springer', 'FHO');
+% title('Сравнение времён VT релаксации CH4-CH4');
+% grid on;
+% 
+% 
