@@ -3,6 +3,21 @@ clear
 % добавить папку fho_model в путь
 addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
 
+% ============================================================================
+% FAST OPTION — REGRESSION RELAXATION MODELS
+% ----------------------------------------------------------------------------
+% The cases below use the state-resolved STS right-hand sides (rpart_mt_*),
+% which integrate FHO rate coefficients and are slow on the full spectrum
+% (~25 min per STS solve). For fast, full-spectrum calculations use instead the
+% regression closures:
+%       t = ch4_regression_terms(T, T13, T24, n);  % 3T -> t.R13, t.R24
+%       t = ch4_regression_terms(T, Tv, n);         % 2T -> t.Rvibr
+% The regression MODELS (polynomial coefficients) live in
+%       regression_coefficients.json   (evaluated by ch4_regression_terms.m)
+% and reproduce the STS results to <0.6% while running in <1 s.
+% A complete worked 2T-vs-3T example is in  mt_compare_regression.m .
+% ============================================================================
+
 %% входные параметры
 
 % свитчи (используются для одиночного запуска при необходимости)

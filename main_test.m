@@ -2,6 +2,10 @@
 function results = main_test(varargin)
 %MAIN_TEST Fast cumulative check of simplified CH4 2T/3T relaxation models.
 %
+% For production-speed, full-spectrum relaxation terms use the regression
+% closures in ch4_regression_terms.m (coefficients in regression_coefficients.json);
+% a worked 2T-vs-3T example is mt_compare_regression.m.
+%
 % Run the fast diagnostic:
 %   results = main_test;
 %

@@ -27,6 +27,7 @@ for r = 1:N
 end
 
 qmax = AD.lch4(partner_mode) - 1;
+donor_active = find(donor_delta ~= 0);   % VV rate depends only on active+partner modes
 partner_low_pop = zeros(qmax + 1, 1);
 partner_high_pop = zeros(qmax + 1, 1);
 for p = 1:N
@@ -66,7 +67,7 @@ for r = 1:N
         sk(partner_mode) = qp;
         skf(partner_mode) = qp + 1;
 
-        key = sprintf('%d_%d_%d_%d_%d_%d', si(1), si(2), si(3), si(4), partner_mode, qp);
+        key = sprintf('%s%d_%d', sprintf('%d_', si(donor_active)), partner_mode, qp);
         if isKey(rate_cache, key)
             kf = rate_cache(key);
         else

@@ -2,6 +2,10 @@ clear
 
 addpath(fullfile(fileparts(mfilename('fullpath')), 'fho_model'));
 
+% NOTE: these cases use the slow state-resolved RHS (rpart_mt_*). For a fast,
+% full-spectrum equivalent use the regression closures in ch4_regression_terms.m
+% (models in regression_coefficients.json); see mt_compare_regression.m.
+
 %% Two-temperature test cases
 p0 = 101325;
 t_fin = 1;
